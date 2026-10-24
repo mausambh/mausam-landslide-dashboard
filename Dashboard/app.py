@@ -931,7 +931,7 @@ def get_saved_closure_reference(highway, selected):
     return None
 
 
-def route_map(gdf, selected=None, closure_point=None, closure_label=None, highway_name=None):
+def route_map(gdf, selected=None, closure_point=None, closure_label=None, highway_name=None, scenario_id=None):
     if selected is not None:
         gdf = gdf[selected].copy()
 
@@ -1078,7 +1078,33 @@ def route_map(gdf, selected=None, closure_point=None, closure_label=None, highwa
         [bounds[3], bounds[2]]
     ])
 
-    legend = """
+    # Show only alternatives present in the selected route geometry.
+    available_ranks = sorted(
+        {
+            int(rank)
+            for rank in gdf["alternative_rank"].dropna()
+        }
+    )
+
+    legend_items = "".join(
+        (
+            f'<span style="color:{route_colors[(rank - 1) % 3]};">'
+            '&#9644;</span> '
+            f'Alternative {rank}<br>'
+        )
+        for rank in available_ranks
+    )
+
+    closure_legend = (
+        '<b>Simulated Road Closure</b><br>'
+        '<span style="color:#dc2626;">&#9679;</span> '
+        'Closure reference location<br>'
+        '<hr style="margin:7px 0;">'
+        if closure_point is not None
+        else ""
+    )
+
+    legend = f"""
     <div style="
         position:fixed;
         bottom:30px;
@@ -1092,17 +1118,9 @@ def route_map(gdf, selected=None, closure_point=None, closure_label=None, highwa
         color:#222;
         box-shadow:0 2px 8px #0002;
     ">
-        <b>Simulated Road Closure</b><br>
-        <span style="color:#dc2626;">&#9679;</span>
-        Closure reference location<br>
-        <hr style="margin:7px 0;">
+        {closure_legend}
         <b>Alternative Routes</b><br>
-        <span style="color:#1565C0;">&#9644;</span>
-        Alternative 1<br>
-        <span style="color:#8E24AA;">&#9644;</span>
-        Alternative 2<br>
-        <span style="color:#00ACC1;">&#9644;</span>
-        Alternative 3<br>
+        {legend_items}
         <small>Distance-ranked, not safety-ranked</small>
     </div>
     """
@@ -1111,6 +1129,61 @@ def route_map(gdf, selected=None, closure_point=None, closure_label=None, highwa
         folium.Element(legend)
     )
 
+
+    # Display saved simulated closure geometry where available.
+    # This is modeled road disruption, not an observed landslide.
+    if highway_name == "Pasang Lhamu" and scenario_id is not None:
+        closure_geometry = None
+
+        if str(scenario_id).startswith(("NH18_S", "NH42_S")):
+            if not str(scenario_id).startswith("NH18_SOUTH"):
+                parts = str(scenario_id).split("_")
+
+                if len(parts) == 3:
+                    designation = parts[0]
+                    section_id = int(parts[1][1:])
+                    position = int(parts[2])
+
+                    footprints = load_geojson(
+                        "Routes/pasang_northern_nh18_nh42_locations_corrected.geojson"
+                    )
+
+                    matching = footprints.loc[
+                        (footprints["designation"] == designation)
+                        & (footprints["section_id"] == section_id)
+                        & (footprints["closure_position_pct"] == position)
+                    ]
+
+                    if not matching.empty:
+                        closure_geometry = matching.geometry.iloc[0]
+
+        elif str(scenario_id).startswith("JUNCTION_"):
+            junction_id = int(str(scenario_id).split("_")[1])
+
+            footprints = load_geojson(
+                "Routes/pasang_nh18_nh42_junction_footprints.geojson"
+            )
+
+            matching = footprints.loc[
+                footprints["junction_id"] == junction_id
+            ]
+
+            if not matching.empty:
+                closure_geometry = matching.geometry.iloc[0]
+
+        if closure_geometry is not None:
+            folium.GeoJson(
+                closure_geometry.__geo_interface__,
+                name="Simulated closure footprint",
+                style_function=lambda feature: {
+                    "color": "#dc2626",
+                    "weight": 7,
+                    "opacity": 0.95,
+                    "fillColor": "#dc2626",
+                    "fillOpacity": 0.18,
+                },
+                tooltip="Saved simulated closure footprint (not an observed landslide)",
+            ).add_to(m)
 
     if closure_point is not None:
         lat, lon = closure_point
@@ -1430,6 +1503,9 @@ if page == "Landslide Route Explorer":
                     "Arniko"
                     if highway.startswith("Arniko")
                     else "Pasang Lhamu"
+                ),
+                scenario_id=(
+                    None if highway.startswith("Arniko") else selected
                 )
             )
 
