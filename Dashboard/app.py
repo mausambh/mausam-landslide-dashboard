@@ -1450,7 +1450,15 @@ if page == "Landslide Route Explorer":
             corrected_routes["alternative_rank"] = (
                 corrected_routes["original_research_rank"].astype(int)
             )
+            # Show only the shortest complete bypass for Junction 1.
+            # Preserve both corrected routes in the source GeoJSON.
+            corrected_routes = corrected_routes.loc[
+                corrected_routes["original_research_rank"].astype(int) == 1
+            ].copy()
             geo_subset = corrected_routes.copy()
+            subset = subset.loc[
+                subset["alternative_rank"].astype(int) == 1
+            ].copy()
 
             corrected_distances = dict(zip(
                 corrected_routes["alternative_rank"].astype(int),
