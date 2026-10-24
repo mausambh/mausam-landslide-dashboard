@@ -1497,7 +1497,9 @@ if page == "Landslide Route Explorer":
             f"{float(shortest['distance_km']):.2f} km"
         )
 
-        if pd.notna(shortest[score_col]):
+        if highway == "Pasang Lhamu" and selected == "JUNCTION_1":
+            c2.metric("Complete-bypass RF score", "Not evaluated")
+        elif pd.notna(shortest[score_col]):
             c2.metric(
                 "2018 route RF score",
                 f"{float(shortest[score_col]):.3f}"
@@ -1572,22 +1574,28 @@ if page == "Landslide Route Explorer":
 
             if highway == "Pasang Lhamu" and selected == "JUNCTION_1":
                 st.caption(
-                    "Junction 1 routes are dashboard-derived graph-based "
-                    "extensions connecting mapped NH18 to NH42. They avoid "
-                    "the simulated closure but are not field-verified. "
-                    "2018 RF scores and coverage describe only the original "
-                    "research segments, not the complete bypasses."
+                    "Junction 1 shows one dashboard-derived, graph-based "
+                    "NH18-to-NH42 bypass segment (4.407 km). Its departure "
+                    "is the mapped NH18 exit junction, not the beginning "
+                    "of the overall journey. The route avoids the modeled "
+                    "closure but has not been field-verified. Original "
+                    "research RF scores do not evaluate this new route."
                 )
 
-            display = subset[
-                [
-                    "alternative_rank",
-                    "distance_km",
-                    extra_col,
-                    score_col,
-                    coverage_col
-                ]
-            ].copy()
+            if highway == "Pasang Lhamu" and selected == "JUNCTION_1":
+                display = subset[
+                    ["alternative_rank", "distance_km"]
+                ].copy()
+            else:
+                display = subset[
+                    [
+                        "alternative_rank",
+                        "distance_km",
+                        extra_col,
+                        score_col,
+                        coverage_col
+                    ]
+                ].copy()
 
             # Dashboard-only consecutive numbering, consistent
             # with the map and dynamic legend.
@@ -1607,19 +1615,19 @@ if page == "Landslide Route Explorer":
                 .map(displayed_ranks)
             )
 
-            display.columns = [
-                "Alternative",
-                "Complete bypass distance (km)"
-                if highway == "Pasang Lhamu" and selected == "JUNCTION_1"
-                else "Distance (km)",
-                "Original-segment extra distance (km)"
-                if highway == "Pasang Lhamu" and selected == "JUNCTION_1"
-                else "Extra distance (km)",
-                "2018 RF score (original segment)"
-                if highway == "Pasang Lhamu" and selected == "JUNCTION_1"
-                else "2018 RF score",
-                "RF coverage (%)"
-            ]
+            if highway == "Pasang Lhamu" and selected == "JUNCTION_1":
+                display.columns = [
+                    "Alternative",
+                    "Bypass segment distance (km)"
+                ]
+            else:
+                display.columns = [
+                    "Alternative",
+                    "Distance (km)",
+                    "Extra distance (km)",
+                    "2018 RF score",
+                    "RF coverage (%)"
+                ]
 
             st.subheader("Compare available alternatives")
 
