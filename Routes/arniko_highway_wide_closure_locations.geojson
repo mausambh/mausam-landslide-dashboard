@@ -1,0 +1,19 @@
+{
+"type": "FeatureCollection",
+"name": "arniko_highway_wide_closure_locations",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "component": 0, "position_pct": 20, "status": "NO_ROUTE_IN_GRAPH", "additional_km": null }, "geometry": { "type": "Point", "coordinates": [ 85.777260329761063, 27.723017490760796 ] } },
+{ "type": "Feature", "properties": { "component": 0, "position_pct": 40, "status": "DETOUR_FOUND", "additional_km": 16.856271950968832 }, "geometry": { "type": "Point", "coordinates": [ 85.691265892257192, 27.647664080431678 ] } },
+{ "type": "Feature", "properties": { "component": 0, "position_pct": 60, "status": "NO_MEANINGFUL_CHANGE", "additional_km": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 85.609734739736083, 27.626622115451344 ] } },
+{ "type": "Feature", "properties": { "component": 0, "position_pct": 80, "status": "DETOUR_FOUND", "additional_km": 1.1720865036912582 }, "geometry": { "type": "Point", "coordinates": [ 85.489545304387022, 27.635606666332066 ] } },
+{ "type": "Feature", "properties": { "component": 1, "position_pct": 20, "status": "DETOUR_FOUND", "additional_km": 14.526653292499406 }, "geometry": { "type": "Point", "coordinates": [ 85.869387491985947, 27.82982690874557 ] } },
+{ "type": "Feature", "properties": { "component": 1, "position_pct": 40, "status": "DETOUR_FOUND", "additional_km": 14.526653292499406 }, "geometry": { "type": "Point", "coordinates": [ 85.883047052509724, 27.871280466567946 ] } },
+{ "type": "Feature", "properties": { "component": 1, "position_pct": 60, "status": "NO_ROUTE_IN_GRAPH", "additional_km": null }, "geometry": { "type": "Point", "coordinates": [ 85.915231343912225, 27.896418879366266 ] } },
+{ "type": "Feature", "properties": { "component": 1, "position_pct": 80, "status": "NO_ROUTE_IN_GRAPH", "additional_km": null }, "geometry": { "type": "Point", "coordinates": [ 85.939794723997935, 27.93587301732768 ] } },
+{ "type": "Feature", "properties": { "component": 2, "position_pct": 20, "status": "NO_MEANINGFUL_CHANGE", "additional_km": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 85.326979223318475, 27.691051835183302 ] } },
+{ "type": "Feature", "properties": { "component": 2, "position_pct": 40, "status": "NO_MEANINGFUL_CHANGE", "additional_km": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 85.333505224985373, 27.68874430660928 ] } },
+{ "type": "Feature", "properties": { "component": 2, "position_pct": 60, "status": "NO_MEANINGFUL_CHANGE", "additional_km": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 85.333672878606109, 27.688632269536626 ] } },
+{ "type": "Feature", "properties": { "component": 2, "position_pct": 80, "status": "NO_MEANINGFUL_CHANGE", "additional_km": 0.0 }, "geometry": { "type": "Point", "coordinates": [ 85.327133094425861, 27.690908994339093 ] } }
+]
+}

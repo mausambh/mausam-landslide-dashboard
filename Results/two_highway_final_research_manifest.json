@@ -1,0 +1,97 @@
+{
+  "created_utc": "2026-10-23T12:46:34.849260+00:00",
+  "status": "CORE_HIGHWAY_RESEARCH_FROZEN",
+  "highways": [
+    "Arniko NH34",
+    "Pasang Lhamu NH18 + NH42"
+  ],
+  "arniko": {
+    "alternative_routes": 12,
+    "distinct_route_geometries": 9,
+    "note": "Three geometries repeat across component 1 closure scenarios."
+  },
+  "pasang": {
+    "closure_scenarios": 17,
+    "feasible_scenarios": 11,
+    "alternative_routes": 33,
+    "blocked_edges_used": 0
+  },
+  "limitations": [
+    "Road closures are hypothetical, not observed incidents.",
+    "Graph-valid routes are not field-verified for safety or drivability.",
+    "Neither mapped highway is verified as fully continuous.",
+    "Betrawati crossing remains unverified; no bridge was fabricated.",
+    "Arniko and Pasang use different graph directionality and closure protocols.",
+    "RF 2018 exposure is retrospective and not a calibrated future probability.",
+    "Arniko RF coverage is incomplete; cross-highway risk scores are not directly comparable.",
+    "NO_ROUTE_IN_GRAPH does not prove that no real-world route exists."
+  ],
+  "checks": {
+    "Arniko 12 research records": true,
+    "Arniko 12 geometries": true,
+    "Arniko geometry keys match": true,
+    "Arniko all routes valid": true,
+    "Arniko no missing edges": true,
+    "Arniko no blocked edges": true,
+    "Arniko overlap 12 comparisons": true,
+    "Pasang 17 scenarios": true,
+    "Pasang 11 feasible scenarios": true,
+    "Pasang 33 alternatives": true,
+    "Pasang 33 source geometries": true,
+    "Pasang source keys match": true,
+    "Pasang all source blocked counts zero": true,
+    "Pasang graph valid": true,
+    "Pasang no missing graph edges": true,
+    "Pasang distances consistent": true,
+    "Pasang RF coverage 100%": true,
+    "Pasang overlap 33 comparisons": true,
+    "Two-highway exposure 2 records": true
+  },
+  "files": {
+    "arniko_routes": {
+      "path": "Routes/arniko_5km_corridor_alternative_routes.geojson",
+      "sha256": "7abc1af7bbb6b5ca55c7ab09fcdf98e796e78b2fba9614f1d0e207be5dae66a6",
+      "records": 12
+    },
+    "arniko_research": {
+      "path": "Results/arniko_final_12_route_research_table.csv",
+      "sha256": "67e42ce4a4e77ed5f6185454f1d9d729a1ac2887e687af719187b24eea075080",
+      "records": 12
+    },
+    "arniko_overlap": {
+      "path": "Results/arniko_12_alternatives_overlap.csv",
+      "sha256": "94c667fbe1afe2cb2632fcb3b134053e3b2bda7e1e1511bde6493b032b647da4",
+      "records": 12
+    },
+    "pasang_scenarios": {
+      "path": "Results/pasang_final_17_scenario_research_table.csv",
+      "sha256": "485fb40c59cfee5d5bffdd69399880d35dea3a02c09618a427eb5bd35a0c8c94",
+      "records": 17
+    },
+    "pasang_alternatives": {
+      "path": "Results/pasang_final_33_alternatives.csv",
+      "sha256": "b2de9aefb67bb404c1d2f5fda3349239a5ed66b2424eea349d2a341c19ec6fbf",
+      "records": 33
+    },
+    "pasang_northern_routes": {
+      "path": "Routes/pasang_multiple_alternative_routes.geojson",
+      "sha256": "f96dff51382025a3c928e15e530b339da09021e6be8ca2d77f54d51b1adbefc7",
+      "records": 24
+    },
+    "pasang_southern_routes": {
+      "path": "Routes/pasang_southern_nh18_alternatives.geojson",
+      "sha256": "323075111d57e59283925b6efa6d47fd797a81938dceefd4f2c769f2f499e19a",
+      "records": 9
+    },
+    "pasang_overlap": {
+      "path": "Results/pasang_final_33_alternatives_overlap.csv",
+      "sha256": "4ea7e8ecf27e97e84edc598259ef88ad8fd22b33b34d7fc9021f95b3a321a717",
+      "records": 33
+    },
+    "two_highway_exposure": {
+      "path": "Data/two_highway_rf_exposure_rebuilt_2018.csv",
+      "sha256": "80ce13327e37c8c3d0d64debcaedf9866b9f6eeadc242ce93acd4a4103c623de",
+      "records": 2
+    }
+  }
+}

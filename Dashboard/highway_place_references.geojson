@@ -1,0 +1,27 @@
+{
+"type": "FeatureCollection",
+"name": "highway_place_references",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "highway": "Arniko", "place": "Jagati", "latitude": 27.666498, "longitude": 85.436478, "reference_type": "Highway vicinity" }, "geometry": { "type": "Point", "coordinates": [ 85.436478, 27.666498 ] } },
+{ "type": "Feature", "properties": { "highway": "Arniko", "place": "Palase", "latitude": 27.64373, "longitude": 85.465463, "reference_type": "Highway vicinity" }, "geometry": { "type": "Point", "coordinates": [ 85.465463, 27.64373 ] } },
+{ "type": "Feature", "properties": { "highway": "Arniko", "place": "Sanga", "latitude": 27.640468, "longitude": 85.48223, "reference_type": "Highway vicinity" }, "geometry": { "type": "Point", "coordinates": [ 85.48223, 27.640468 ] } },
+{ "type": "Feature", "properties": { "highway": "Arniko", "place": "Banepa", "latitude": 27.629883, "longitude": 85.524043, "reference_type": "Highway vicinity" }, "geometry": { "type": "Point", "coordinates": [ 85.524043, 27.629883 ] } },
+{ "type": "Feature", "properties": { "highway": "Arniko", "place": "Dhulikhel", "latitude": 27.618921, "longitude": 85.552917, "reference_type": "Highway vicinity" }, "geometry": { "type": "Point", "coordinates": [ 85.552917, 27.618921 ] } },
+{ "type": "Feature", "properties": { "highway": "Arniko", "place": "Dolalghat", "latitude": 27.637255, "longitude": 85.705381, "reference_type": "Highway vicinity" }, "geometry": { "type": "Point", "coordinates": [ 85.705381, 27.637255 ] } },
+{ "type": "Feature", "properties": { "highway": "Arniko", "place": "Nala", "latitude": 27.654927, "longitude": 85.533731, "reference_type": "Nearby detour reference" }, "geometry": { "type": "Point", "coordinates": [ 85.533731, 27.654927 ] } },
+{ "type": "Feature", "properties": { "highway": "Pasang Lhamu", "place": "Balaju", "latitude": 27.730946, "longitude": 85.298082, "reference_type": "Highway vicinity" }, "geometry": { "type": "Point", "coordinates": [ 85.298082, 27.730946 ] } },
+{ "type": "Feature", "properties": { "highway": "Pasang Lhamu", "place": "Kakani", "latitude": 27.815654, "longitude": 85.24696, "reference_type": "Highway vicinity" }, "geometry": { "type": "Point", "coordinates": [ 85.24696, 27.815654 ] } },
+{ "type": "Feature", "properties": { "highway": "Pasang Lhamu", "place": "Betrawati", "latitude": 27.973108, "longitude": 85.185953, "reference_type": "Highway vicinity" }, "geometry": { "type": "Point", "coordinates": [ 85.185953, 27.973108 ] } },
+{ "type": "Feature", "properties": { "highway": "Pasang Lhamu", "place": "Dhunche", "latitude": 28.112795, "longitude": 85.296058, "reference_type": "Highway vicinity" }, "geometry": { "type": "Point", "coordinates": [ 85.296058, 28.112795 ] } },
+{ "type": "Feature", "properties": { "highway": "Pasang Lhamu", "place": "Trishuli", "latitude": 27.92316, "longitude": 85.147993, "reference_type": "Nearby settlement reference" }, "geometry": { "type": "Point", "coordinates": [ 85.147993, 27.92316 ] } },
+{ "type": "Feature", "properties": { "highway": "Pasang Lhamu", "place": "Bidur", "latitude": 27.89526, "longitude": 85.146446, "reference_type": "Nearby settlement reference" }, "geometry": { "type": "Point", "coordinates": [ 85.146446, 27.89526 ] } },
+{ "type": "Feature", "properties": { "highway": "Arniko", "place": "Lapse", "latitude": 27.7230174907608, "longitude": 85.777260329761063, "reference_type": "Scenario-area reference" }, "geometry": { "type": "Point", "coordinates": [ 85.777260329761063, 27.7230174907608 ] } },
+{ "type": "Feature", "properties": { "highway": "Arniko", "place": "Salgarhi", "latitude": 27.626622115451344, "longitude": 85.609734739736083, "reference_type": "Scenario-area reference" }, "geometry": { "type": "Point", "coordinates": [ 85.609734739736083, 27.626622115451344 ] } },
+{ "type": "Feature", "properties": { "highway": "Arniko", "place": "Dandakateri", "latitude": 27.82982690874557, "longitude": 85.869387491985947, "reference_type": "Scenario-area reference" }, "geometry": { "type": "Point", "coordinates": [ 85.869387491985947, 27.82982690874557 ] } },
+{ "type": "Feature", "properties": { "highway": "Arniko", "place": "Gati", "latitude": 27.871280466567946, "longitude": 85.883047052509724, "reference_type": "Scenario-area reference" }, "geometry": { "type": "Point", "coordinates": [ 85.883047052509724, 27.871280466567946 ] } },
+{ "type": "Feature", "properties": { "highway": "Arniko", "place": "Panthali", "latitude": 27.896418879366266, "longitude": 85.915231343912225, "reference_type": "Scenario-area reference" }, "geometry": { "type": "Point", "coordinates": [ 85.915231343912225, 27.896418879366266 ] } },
+{ "type": "Feature", "properties": { "highway": "Arniko", "place": "Larcha", "latitude": 27.93587301732768, "longitude": 85.939794723997935, "reference_type": "Scenario-area reference" }, "geometry": { "type": "Point", "coordinates": [ 85.939794723997935, 27.93587301732768 ] } },
+{ "type": "Feature", "properties": { "highway": "Pasang Lhamu", "place": "Grang", "latitude": 28.052976016539496, "longitude": 85.229409964626669, "reference_type": "Scenario-area reference" }, "geometry": { "type": "Point", "coordinates": [ 85.229409964626669, 28.052976016539496 ] } }
+]
+}
