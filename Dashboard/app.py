@@ -1575,7 +1575,7 @@ if page == "Landslide Route Explorer":
             if highway == "Pasang Lhamu" and selected == "JUNCTION_1":
                 st.caption(
                     "Junction 1 shows one dashboard-derived, graph-based "
-                    "NH18-to-NH42 bypass segment (4.407 km). Its departure "
+                    "NH18-to-NH42 bypass segment (4.346 km). Its departure "
                     "is the mapped NH18 exit junction, not the beginning "
                     "of the overall journey. The route avoids the modeled "
                     "closure but has not been field-verified. Original "
