@@ -1049,8 +1049,16 @@ def route_map(gdf, selected=None, closure_point=None, closure_label=None, highwa
 
     route_colors = ["#1565C0", "#8E24AA", "#00ACC1"]
 
+    display_ranks = {
+        original_rank: display_rank
+        for display_rank, original_rank in enumerate(
+            sorted(int(r) for r in gdf["alternative_rank"].dropna().unique()),
+            start=1
+        )
+    }
+
     for _, row in gdf.iterrows():
-        rank = int(row["alternative_rank"])
+        rank = display_ranks[int(row["alternative_rank"])]
         color = route_colors[(rank - 1) % 3]
 
         layer = folium.FeatureGroup(
@@ -1079,12 +1087,7 @@ def route_map(gdf, selected=None, closure_point=None, closure_label=None, highwa
     ])
 
     # Show only alternatives present in the selected route geometry.
-    available_ranks = sorted(
-        {
-            int(rank)
-            for rank in gdf["alternative_rank"].dropna()
-        }
-    )
+    available_ranks = sorted(display_ranks.values())
 
     legend_items = "".join(
         (
@@ -1429,6 +1432,16 @@ if page == "Landslide Route Explorer":
             routes["scenario_id"] == selected
         ].copy()
 
+        # Presentation-only filtering: JUNCTION_1 original ranks
+        # 1 and 2 are approximately 98.7% overlapping.
+        if selected == "JUNCTION_1":
+            subset = subset.loc[
+                subset["alternative_rank"].isin([1, 3])
+            ].copy()
+            geo_subset = geo_subset.loc[
+                geo_subset["alternative_rank"].isin([1, 3])
+            ].copy()
+
         score_col = "length_weighted_rf_score_2018"
         coverage_col = "rf_coverage_pct"
         extra_col = "extra_vs_shortest_km"
@@ -1536,6 +1549,24 @@ if page == "Landslide Route Explorer":
                     coverage_col
                 ]
             ].copy()
+
+            # Dashboard-only consecutive numbering, consistent
+            # with the map and dynamic legend.
+            displayed_ranks = {
+                original_rank: display_rank
+                for display_rank, original_rank in enumerate(
+                    sorted(
+                        int(rank)
+                        for rank in geo_subset["alternative_rank"].dropna().unique()
+                    ),
+                    start=1
+                )
+            }
+            display["alternative_rank"] = (
+                display["alternative_rank"]
+                .astype(int)
+                .map(displayed_ranks)
+            )
 
             display.columns = [
                 "Alternative",
