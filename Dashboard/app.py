@@ -1194,6 +1194,38 @@ def route_map(gdf, selected=None, closure_point=None, closure_label=None, highwa
             ).add_to(footprint_layer)
             footprint_layer.add_to(m)
 
+
+    if highway_name == "Arniko" and scenario_id == "ARNIKO_C0_40":
+        junction_markers = [
+            (
+                "Entry: Western Arniko Highway junction (Dolalghat approach)",
+                27.662905, 85.653901, "#16a34a"
+            ),
+            (
+                "Exit: Eastern Arniko Highway junction (Dolalghat area)",
+                27.645570, 85.702147, "#f97316"
+            ),
+        ]
+        for label, lat, lon, color in junction_markers:
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=8,
+                color="#ffffff",
+                weight=2,
+                fill=True,
+                fill_color=color,
+                fill_opacity=1.0,
+                tooltip=label,
+                popup=folium.Popup(
+                    f"<b>{label}</b>"
+                    f"<br>Latitude: {lat:.6f}"
+                    f"<br>Longitude: {lon:.6f}"
+                    "<br>Descriptive junction label, not an official name"
+                    "<br>Graph-derived route; not field-verified",
+                    max_width=340,
+                ),
+            ).add_to(m)
+
     if closure_point is not None:
         lat, lon = closure_point
 
@@ -1391,6 +1423,21 @@ if page == "Landslide Route Explorer":
             (routes["closure_position_pct"] == selected[1])
         ].copy()
 
+        # Dolalghat: local graph-derived bypass for map presentation only.
+        # Original research routes and RF results remain untouched.
+        if selected == (0, 40):
+            local_path = (
+                Path(__file__).resolve().parents[1]
+                / "Routes/dashboard_dolalghat_local_bypass.geojson"
+            )
+            geo_subset = gpd.read_file(local_path).to_crs("EPSG:4326")
+            subset = subset.loc[
+                subset["alternative_rank"].astype(int) == 1
+            ].copy()
+            subset["distance_km"] = float(
+                geo_subset.iloc[0]["distance_km"]
+            )
+
         score_col = "matched_rf_score"
         coverage_col = "coverage_pct"
         extra_col = "additional_distance_km"
@@ -1492,12 +1539,19 @@ if page == "Landslide Route Explorer":
 
         c1, c2, c3 = st.columns(3)
 
+        is_dolalghat_local = (
+            highway.startswith("Arniko") and selected == (0, 40)
+        )
+
         c1.metric(
-            "Shortest available alternative",
+            "Local bypass distance" if is_dolalghat_local
+            else "Shortest available alternative",
             f"{float(shortest['distance_km']):.2f} km"
         )
 
-        if highway == "Pasang Lhamu" and selected == "JUNCTION_1":
+        if is_dolalghat_local:
+            c2.metric("Local bypass RF score", "Not evaluated")
+        elif highway == "Pasang Lhamu" and selected == "JUNCTION_1":
             c2.metric("Complete-bypass RF score", "Not evaluated")
         elif pd.notna(shortest[score_col]):
             c2.metric(
@@ -1507,7 +1561,9 @@ if page == "Landslide Route Explorer":
         else:
             c2.metric("2018 route RF score", "Unavailable")
 
-        if pd.notna(shortest[coverage_col]):
+        if is_dolalghat_local:
+            c3.metric("Local bypass RF coverage", "Not evaluated")
+        elif pd.notna(shortest[coverage_col]):
             c3.metric(
                 "RF coverage",
                 f"{float(shortest[coverage_col]):.1f}%"
@@ -1556,7 +1612,10 @@ if page == "Landslide Route Explorer":
                     else "Pasang Lhamu"
                 ),
                 scenario_id=(
-                    None if highway.startswith("Arniko") else selected
+                    "ARNIKO_C0_40"
+                    if highway.startswith("Arniko") and selected == (0, 40)
+                    else None if highway.startswith("Arniko")
+                    else selected
                 )
             )
 
@@ -1582,7 +1641,19 @@ if page == "Landslide Route Explorer":
                     "research RF scores do not evaluate this new route."
                 )
 
-            if highway == "Pasang Lhamu" and selected == "JUNCTION_1":
+            if is_dolalghat_local:
+                st.caption(
+                    "Dolalghat displays one graph-derived local bypass. "
+                    "Entry: Western Arniko Highway junction (Dolalghat approach); "
+                    "exit: Eastern Arniko Highway junction (Dolalghat area). "
+                    "These are descriptive labels, not official junction names. "
+                    "The route has not been field-verified, and the original "
+                    "research RF scores do not evaluate this bypass."
+                )
+                display = subset[
+                    ["alternative_rank", "distance_km"]
+                ].copy()
+            elif highway == "Pasang Lhamu" and selected == "JUNCTION_1":
                 display = subset[
                     ["alternative_rank", "distance_km"]
                 ].copy()
@@ -1615,7 +1686,12 @@ if page == "Landslide Route Explorer":
                 .map(displayed_ranks)
             )
 
-            if highway == "Pasang Lhamu" and selected == "JUNCTION_1":
+            if is_dolalghat_local:
+                display.columns = [
+                    "Alternative",
+                    "Local bypass distance (km)"
+                ]
+            elif highway == "Pasang Lhamu" and selected == "JUNCTION_1":
                 display.columns = [
                     "Alternative",
                     "Bypass segment distance (km)"
