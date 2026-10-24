@@ -1172,18 +1172,24 @@ def route_map(gdf, selected=None, closure_point=None, closure_label=None, highwa
                 closure_geometry = matching.geometry.iloc[0]
 
         if closure_geometry is not None:
+            # Retain the simulated footprint as an optional map layer.
+            # The standard red reference marker remains the default.
+            footprint_layer = folium.FeatureGroup(
+                name="Simulated closure footprint",
+                show=False
+            )
             folium.GeoJson(
                 closure_geometry.__geo_interface__,
-                name="Simulated closure footprint",
                 style_function=lambda feature: {
                     "color": "#dc2626",
-                    "weight": 7,
-                    "opacity": 0.95,
+                    "weight": 3,
+                    "opacity": 0.85,
                     "fillColor": "#dc2626",
-                    "fillOpacity": 0.18,
+                    "fillOpacity": 0.10,
                 },
                 tooltip="Saved simulated closure footprint (not an observed landslide)",
-            ).add_to(m)
+            ).add_to(footprint_layer)
+            footprint_layer.add_to(m)
 
     if closure_point is not None:
         lat, lon = closure_point
