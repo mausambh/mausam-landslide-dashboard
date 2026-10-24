@@ -1049,13 +1049,27 @@ def route_map(gdf, selected=None, closure_point=None, closure_label=None, highwa
 
     route_colors = ["#1565C0", "#8E24AA", "#00ACC1"]
 
-    display_ranks = {
-        original_rank: display_rank
-        for display_rank, original_rank in enumerate(
-            sorted(int(r) for r in gdf["alternative_rank"].dropna().unique()),
-            start=1
-        )
-    }
+    # Preserve original route ranks for corrected local bypasses.
+    # Other scenarios retain their existing sequential display ranks.
+    is_local_arniko = (
+        highway_name == "Arniko"
+        and scenario_id in ("ARNIKO_C0_40", "ARNIKO_C0_80")
+    )
+
+    original_ranks = sorted(
+        int(r) for r in gdf["alternative_rank"].dropna().unique()
+    )
+
+    display_ranks = (
+        {rank: rank for rank in original_ranks}
+        if is_local_arniko
+        else {
+            original_rank: display_rank
+            for display_rank, original_rank in enumerate(
+                original_ranks, start=1
+            )
+        }
+    )
 
     for _, row in gdf.iterrows():
         rank = display_ranks[int(row["alternative_rank"])]
@@ -1195,15 +1209,21 @@ def route_map(gdf, selected=None, closure_point=None, closure_label=None, highwa
             footprint_layer.add_to(m)
 
 
-    if highway_name == "Arniko" and scenario_id == "ARNIKO_C0_40":
+    if highway_name == "Arniko" and scenario_id in (
+        "ARNIKO_C0_40", "ARNIKO_C0_80"
+    ):
+        route_info = gdf.iloc[0]
+        start_lon, start_lat = list(route_info.geometry.coords)[0]
+        end_lon, end_lat = list(route_info.geometry.coords)[-1]
+
         junction_markers = [
             (
-                "Entry: Western Arniko Highway junction (Dolalghat approach)",
-                27.662905, 85.653901, "#16a34a"
+                f"Entry: {route_info['entry_name']}",
+                start_lat, start_lon, "#16a34a"
             ),
             (
-                "Exit: Eastern Arniko Highway junction (Dolalghat area)",
-                27.645570, 85.702147, "#f97316"
+                f"Exit: {route_info['exit_name']}",
+                end_lat, end_lon, "#f97316"
             ),
         ]
         for label, lat, lon, color in junction_markers:
@@ -1425,17 +1445,83 @@ if page == "Landslide Route Explorer":
 
         # Dolalghat: local graph-derived bypass for map presentation only.
         # Original research routes and RF results remain untouched.
-        if selected == (0, 40):
+        if selected in [(0, 40), (0, 80)]:
+            local_filename = {
+                (0, 40): "dashboard_dolalghat_local_bypass.geojson",
+                (0, 80): "dashboard_itafu_local_bypass.geojson",
+            }[selected]
             local_path = (
                 Path(__file__).resolve().parents[1]
-                / "Routes/dashboard_dolalghat_local_bypass.geojson"
+                / "Routes" / local_filename
             )
-            geo_subset = gpd.read_file(local_path).to_crs("EPSG:4326")
+            available_local_routes = (
+                gpd.read_file(local_path)
+                .to_crs("EPSG:4326")
+                .sort_values("alternative_rank")
+            )
+
+            # Show a route selector only when multiple local bypasses exist.
+            if len(available_local_routes) > 1:
+                route_options = available_local_routes[
+                    "alternative_rank"
+                ].astype(int).tolist()
+
+                selected_route_rank = st.selectbox(
+                    "Choose one local bypass alternative",
+                    options=route_options,
+                    format_func=lambda rank: (
+                        f"Alternative {rank} — "
+                        f"{float(available_local_routes.loc[available_local_routes['alternative_rank'].astype(int) == rank, 'distance_km'].iloc[0]):.3f} km"
+                    ),
+                    key=f"arniko_local_route_{selected[0]}_{selected[1]}",
+                )
+            else:
+                selected_route_rank = int(
+                    available_local_routes.iloc[0]["alternative_rank"]
+                )
+
+            # Only the chosen alternative is passed to the map.
+            geo_subset = available_local_routes.loc[
+                available_local_routes["alternative_rank"].astype(int)
+                == selected_route_rank
+            ].copy()
+
+            selected_local_route = geo_subset.iloc[0]
+
+            # Preserve the original research table; use its first row
+            # only as a presentation shell for the local bypass metrics.
             subset = subset.loc[
                 subset["alternative_rank"].astype(int) == 1
             ].copy()
+            subset["alternative_rank"] = selected_route_rank
             subset["distance_km"] = float(
-                geo_subset.iloc[0]["distance_km"]
+                selected_local_route["distance_km"]
+            )
+
+            # Details update when the selected alternative changes.
+            st.markdown(
+                f"**Selected:** Alternative {selected_route_rank} "
+                f"— {float(selected_local_route['distance_km']):.3f} km"
+            )
+            entry_lon, entry_lat = list(
+                selected_local_route.geometry.coords
+            )[0]
+            exit_lon, exit_lat = list(
+                selected_local_route.geometry.coords
+            )[-1]
+
+            st.write(
+                f"🟢 **Entry:** {selected_local_route['entry_name']} "
+                f"({entry_lat:.6f}, {entry_lon:.6f})"
+            )
+            st.write(
+                f"🟠 **Exit:** {selected_local_route['exit_name']} "
+                f"({exit_lat:.6f}, {exit_lon:.6f})"
+            )
+            st.caption(
+                "Junction names are descriptive, not officially verified. "
+                "The selected route is graph-derived and has not been "
+                "field-verified."
             )
 
         score_col = "matched_rf_score"
@@ -1540,7 +1626,8 @@ if page == "Landslide Route Explorer":
         c1, c2, c3 = st.columns(3)
 
         is_dolalghat_local = (
-            highway.startswith("Arniko") and selected == (0, 40)
+            highway.startswith("Arniko")
+            and selected in [(0, 40), (0, 80)]
         )
 
         c1.metric(
@@ -1612,8 +1699,9 @@ if page == "Landslide Route Explorer":
                     else "Pasang Lhamu"
                 ),
                 scenario_id=(
-                    "ARNIKO_C0_40"
-                    if highway.startswith("Arniko") and selected == (0, 40)
+                    f"ARNIKO_C{selected[0]}_{selected[1]}"
+                    if highway.startswith("Arniko")
+                    and selected in [(0, 40), (0, 80)]
                     else None if highway.startswith("Arniko")
                     else selected
                 )
@@ -1643,9 +1731,9 @@ if page == "Landslide Route Explorer":
 
             if is_dolalghat_local:
                 st.caption(
-                    "Dolalghat displays one graph-derived local bypass. "
-                    "Entry: Western Arniko Highway junction (Dolalghat approach); "
-                    "exit: Eastern Arniko Highway junction (Dolalghat area). "
+                    "This scenario displays one graph-derived local bypass. "
+                    f"Entry: {geo_subset.iloc[0]['entry_name']}; "
+                    f"exit: {geo_subset.iloc[0]['exit_name']}. "
                     "These are descriptive labels, not official junction names. "
                     "The route has not been field-verified, and the original "
                     "research RF scores do not evaluate this bypass."
