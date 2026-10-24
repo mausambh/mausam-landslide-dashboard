@@ -1432,15 +1432,37 @@ if page == "Landslide Route Explorer":
             routes["scenario_id"] == selected
         ].copy()
 
-        # Presentation-only filtering: JUNCTION_1 original ranks
-        # 1 and 2 are approximately 98.7% overlapping.
+        # Junction 1: dashboard-derived complete NH18-to-NH42 bypasses.
+        # Original research routes and RF results remain unchanged.
         if selected == "JUNCTION_1":
             subset = subset.loc[
                 subset["alternative_rank"].isin([1, 3])
             ].copy()
-            geo_subset = geo_subset.loc[
-                geo_subset["alternative_rank"].isin([1, 3])
-            ].copy()
+
+            corrected_path = (
+                Path(__file__).resolve().parents[1] / "Routes"
+                / "dashboard_junction1_complete_bypasses.geojson"
+            )
+            corrected_routes = gpd.read_file(corrected_path).to_crs("EPSG:4326")
+
+            # Retain research ranks internally (1, 3), so existing
+            # map/legend numbering consistently displays (1, 2).
+            corrected_routes["alternative_rank"] = (
+                corrected_routes["original_research_rank"].astype(int)
+            )
+            geo_subset = corrected_routes.copy()
+
+            corrected_distances = dict(zip(
+                corrected_routes["alternative_rank"].astype(int),
+                corrected_routes["distance_km"].astype(float)
+            ))
+
+            subset["original_segment_distance_km"] = subset["distance_km"]
+            subset["distance_km"] = (
+                subset["alternative_rank"]
+                .astype(int)
+                .map(corrected_distances)
+            )
 
         score_col = "length_weighted_rf_score_2018"
         coverage_col = "rf_coverage_pct"
@@ -1540,6 +1562,15 @@ if page == "Landslide Route Explorer":
                     "or an observed landslide."
                 )
 
+            if highway == "Pasang Lhamu" and selected == "JUNCTION_1":
+                st.caption(
+                    "Junction 1 routes are dashboard-derived graph-based "
+                    "extensions connecting mapped NH18 to NH42. They avoid "
+                    "the simulated closure but are not field-verified. "
+                    "2018 RF scores and coverage describe only the original "
+                    "research segments, not the complete bypasses."
+                )
+
             display = subset[
                 [
                     "alternative_rank",
@@ -1570,9 +1601,15 @@ if page == "Landslide Route Explorer":
 
             display.columns = [
                 "Alternative",
-                "Distance (km)",
-                "Extra distance (km)",
-                "2018 RF score",
+                "Complete bypass distance (km)"
+                if highway == "Pasang Lhamu" and selected == "JUNCTION_1"
+                else "Distance (km)",
+                "Original-segment extra distance (km)"
+                if highway == "Pasang Lhamu" and selected == "JUNCTION_1"
+                else "Extra distance (km)",
+                "2018 RF score (original segment)"
+                if highway == "Pasang Lhamu" and selected == "JUNCTION_1"
+                else "2018 RF score",
                 "RF coverage (%)"
             ]
 
