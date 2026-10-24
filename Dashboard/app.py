@@ -1210,7 +1210,8 @@ def route_map(gdf, selected=None, closure_point=None, closure_label=None, highwa
 
 
     if highway_name == "Arniko" and scenario_id in (
-        "ARNIKO_C0_40", "ARNIKO_C0_80"
+        "ARNIKO_C0_40", "ARNIKO_C0_80",
+        "ARNIKO_C1_20", "ARNIKO_C1_40"
     ):
         route_info = gdf.iloc[0]
         start_lon, start_lat = list(route_info.geometry.coords)[0]
