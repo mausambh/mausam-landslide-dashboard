@@ -1796,7 +1796,29 @@ if page == "Landslide Route Explorer":
             st.subheader("Compare available alternatives")
 
             # Presentation only: preserve the saved research values.
-            comparison_display = display.round(3).copy()
+            # For corrected local Arniko bypasses, compare every saved
+            # alternative even though the map shows only the selected one.
+            if (
+                highway.startswith("Arniko")
+                and selected in [(0, 40), (0, 80)]
+            ):
+                comparison_display = (
+                    available_local_routes[
+                        ["alternative_rank", "distance_km"]
+                    ]
+                    .sort_values("alternative_rank")
+                    .copy()
+                )
+                comparison_display.columns = [
+                    "Alternative",
+                    "Local bypass distance (km)"
+                ]
+                comparison_display["Alternative"] = (
+                    comparison_display["Alternative"].astype(int)
+                )
+                comparison_display = comparison_display.round(3)
+            else:
+                comparison_display = display.round(3).copy()
 
             table_header_bg = (
                 "#edf2f8" if theme == "light" else "#1b2637"
