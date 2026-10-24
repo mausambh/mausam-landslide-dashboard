@@ -1445,10 +1445,12 @@ if page == "Landslide Route Explorer":
 
         # Dolalghat: local graph-derived bypass for map presentation only.
         # Original research routes and RF results remain untouched.
-        if selected in [(0, 40), (0, 80)]:
+        if selected in [(0, 40), (0, 80), (1, 20), (1, 40)]:
             local_filename = {
                 (0, 40): "dashboard_dolalghat_local_bypass.geojson",
                 (0, 80): "dashboard_itafu_local_bypass.geojson",
+                (1, 20): "dashboard_dandakateri_local_bypass.geojson",
+                (1, 40): "dashboard_arniko_c1_40_local_bypass.geojson",
             }[selected]
             local_path = (
                 Path(__file__).resolve().parents[1]
@@ -1627,7 +1629,7 @@ if page == "Landslide Route Explorer":
 
         is_dolalghat_local = (
             highway.startswith("Arniko")
-            and selected in [(0, 40), (0, 80)]
+            and selected in [(0, 40), (0, 80), (1, 20), (1, 40)]
         )
 
         c1.metric(
@@ -1701,7 +1703,7 @@ if page == "Landslide Route Explorer":
                 scenario_id=(
                     f"ARNIKO_C{selected[0]}_{selected[1]}"
                     if highway.startswith("Arniko")
-                    and selected in [(0, 40), (0, 80)]
+                    and selected in [(0, 40), (0, 80), (1, 20), (1, 40)]
                     else None if highway.startswith("Arniko")
                     else selected
                 )
@@ -1727,6 +1729,14 @@ if page == "Landslide Route Explorer":
                     "of the overall journey. The route avoids the modeled "
                     "closure but has not been field-verified. Original "
                     "research RF scores do not evaluate this new route."
+                )
+
+            if selected == (1, 40) and highway.startswith("Arniko"):
+                st.warning(
+                    "Gati local bypass is provisional. Its geometry avoids "
+                    "the 100 m closure buffer, but avoidance of all "
+                    "originally blocked road edges has not been confirmed. "
+                    "The route has not been field-verified."
                 )
 
             if is_dolalghat_local:
@@ -1800,7 +1810,7 @@ if page == "Landslide Route Explorer":
             # alternative even though the map shows only the selected one.
             if (
                 highway.startswith("Arniko")
-                and selected in [(0, 40), (0, 80)]
+                and selected in [(0, 40), (0, 80), (1, 20), (1, 40)]
             ):
                 comparison_display = (
                     available_local_routes[
