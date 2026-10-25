@@ -676,16 +676,33 @@ def render_highway_research(highway):
         ] = "3 local alternatives identified"
         summary.loc[
             summary["scenario_id"] == "ARNIKO_C1_40", "Result"
-        ] = "Provisional local bypass identified"
+        ] = "Provisional local bypass candidate"
 
         total_scenarios = len(summary)
-        detours = int((
+
+        # Count both validated and provisional candidate scenarios.
+        candidate_statuses = [
+            "VALIDATED_GRAPH_DERIVED_BYPASS",
+            "PROVISIONAL_GRAPH_DERIVED_BYPASS",
+        ]
+        detours = int(
             summary["assessment_status"]
-            == "VALIDATED_GRAPH_DERIVED_BYPASS"
-        ).sum())
+            .isin(candidate_statuses)
+            .sum()
+        )
+
+        # Keep provisional candidates visible without counting them
+        # as validated alternatives in the research-status CSV.
+        provisional_count = int(
+            (
+                summary["assessment_status"]
+                == "PROVISIONAL_GRAPH_DERIVED_BYPASS"
+            ).sum()
+        )
         total_alternatives = int(
             summary["validated_alternative_count"]
             .fillna(0).sum()
+            + provisional_count
         )
 
         limitations = (
@@ -773,8 +790,18 @@ def render_highway_research(highway):
 
     a, b, c = st.columns(3)
     a.metric("Closure scenarios", total_scenarios)
-    b.metric("Detours found", detours)
-    c.metric("Alternative routes", total_alternatives)
+
+    if highway == "arniko":
+        b.metric("Scenarios with bypass candidates", detours)
+        c.metric("Candidate route results", total_alternatives)
+        st.caption(
+            "Five route results are recorded as validated graph-derived "
+            "candidates; Gati is provisional. Candidate counts do not "
+            "represent distinct physical corridors or field-verified roads."
+        )
+    else:
+        b.metric("Detours found", detours)
+        c.metric("Alternative routes", total_alternatives)
 
     with st.expander(
         "Detailed route scenarios and research results",
@@ -1571,11 +1598,23 @@ if page == "Landslide Route Explorer":
         assessment_status = assessment.iloc[0]["assessment_status"]
 
         if assessment_status == "VALIDATED_GRAPH_DERIVED_BYPASS":
-            st.success("Graph-derived local bypass identified.")
-        elif assessment_status == "NO_BYPASS_FOUND_WITHIN_TESTED_LIMITS":
-            # The shared warning is displayed below for Panthali
-            # and Larcha; avoid duplicating the message here.
+            st.success("Graph-derived local bypass candidate identified.")
+        elif assessment_status == "PROVISIONAL_GRAPH_DERIVED_BYPASS":
+            st.warning(
+                "Provisional local bypass candidate. Avoidance of all "
+                "originally blocked road edges has not been independently "
+                "reproduced. Road passability and safety are unverified."
+            )
+        elif assessment_status in [
+            "NO_BYPASS_FOUND_WITHIN_TESTED_LIMITS",
+            "NO_QUALIFYING_BYPASS_UNDER_TESTED_CONSTRAINTS",
+        ]:
             pass
+        elif assessment_status == "REJECTED_SAME_SIDE_JUNCTIONS":
+            st.warning(
+                "No qualifying local bypass is currently established "
+                "for this simulated closure."
+            )
         else:
             st.info(
                 "Local bypass assessment has not yet been completed "
@@ -1583,18 +1622,21 @@ if page == "Landslide Route Explorer":
             )
 
         # The original route geometries represent the earlier
-        # full-journey methodology. Only the four validated local
-        # bypass scenarios should use geometry in this explorer.
-        if assessment_status != "VALIDATED_GRAPH_DERIVED_BYPASS":
+        # full-journey methodology. Only approved local-bypass scenarios
+        # with validated or explicitly provisional status may show maps.
+        map_eligible_statuses = {
+            "VALIDATED_GRAPH_DERIVED_BYPASS",
+            "PROVISIONAL_GRAPH_DERIVED_BYPASS",
+        }
+        if assessment_status not in map_eligible_statuses:
             subset = subset.iloc[0:0].copy()
             geo_subset = geo_subset.iloc[0:0].copy()
 
         # Dolalghat: local graph-derived bypass for map presentation only.
         # Original research routes and RF results remain untouched.
-        if selected in [(0, 40), (0, 60), (0, 80), (1, 20), (1, 40)]:
+        if selected in [(0, 40), (0, 80), (1, 20), (1, 40)]:
             local_filename = {
                 (0, 40): "dashboard_dolalghat_local_bypass.geojson",
-                (0, 60): "dashboard_salgarhi_local_bypass.geojson",
                 (0, 80): "dashboard_itafu_local_bypass.geojson",
                 (1, 20): "dashboard_dandakateri_local_bypass.geojson",
                 (1, 40): "dashboard_arniko_c1_40_local_bypass.geojson",
@@ -1647,19 +1689,6 @@ if page == "Landslide Route Explorer":
             # but no corresponding original research result row.
             # Build a presentation-only row without changing
             # the original research data.
-            if selected == (0, 60) and subset.empty:
-                subset = pd.DataFrame([{
-                    "component": 0,
-                    "closure_position_pct": 60,
-                    "scenario_id": "ARNIKO_C0_60",
-                    "alternative_rank": selected_route_rank,
-                    "distance_km": float(
-                        selected_local_route["distance_km"]
-                    ),
-                    "matched_rf_score": float("nan"),
-                    "coverage_pct": float("nan"),
-                    "additional_distance_km": float("nan")
-                }])
 
             subset["alternative_rank"] = selected_route_rank
             subset["distance_km"] = float(
