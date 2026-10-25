@@ -792,17 +792,57 @@ def render_highway_research(highway):
             "Result"
         ]
 
-        display_summary = summary[columns].copy()
+        if highway == "arniko":
+            display_summary = summary[
+                ["Scenario", "Alternative distance (km)", "Result"]
+            ].copy()
 
-        for col in [
-            "Original distance (km)",
-            "Alternative distance (km)",
-            "Extra distance (km)",
-            "Distance increase (%)"
-        ]:
-            display_summary[col] = pd.to_numeric(
-                display_summary[col], errors="coerce"
-            ).round(2)
+            display_summary = display_summary.rename(columns={
+                "Alternative distance (km)":
+                    "Local bypass distances (km)"
+            })
+
+            distance_col_public = "Local bypass distances (km)"
+
+            display_summary[distance_col_public] = (
+                display_summary[distance_col_public].apply(
+                    lambda value: (
+                        f"{float(value):.2f}"
+                        if pd.notna(value) else "—"
+                    )
+                )
+            )
+
+            # Read all saved Itafu alternatives rather than
+            # displaying only the shortest route.
+            itafu_routes = gpd.read_file(
+                ROOT / "Routes/dashboard_itafu_local_bypass.geojson"
+            ).sort_values("alternative_rank")
+
+            assert len(itafu_routes) == 3
+
+            itafu_distances = ", ".join(
+                f"{float(value):.2f}"
+                for value in itafu_routes["distance_km"]
+            )
+
+            display_summary.loc[
+                summary["scenario_id"] == "ARNIKO_C0_80",
+                distance_col_public
+            ] = itafu_distances
+
+        else:
+            display_summary = summary[columns].copy()
+
+            for col in [
+                "Original distance (km)",
+                "Alternative distance (km)",
+                "Extra distance (km)",
+                "Distance increase (%)"
+            ]:
+                display_summary[col] = pd.to_numeric(
+                    display_summary[col], errors="coerce"
+                ).round(2)
 
         st.dataframe(
             display_summary,
