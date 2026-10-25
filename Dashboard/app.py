@@ -1512,11 +1512,9 @@ if page == "Landslide Route Explorer":
         if assessment_status == "VALIDATED_GRAPH_DERIVED_BYPASS":
             st.success("Graph-derived local bypass identified.")
         elif assessment_status == "NO_BYPASS_FOUND_WITHIN_TESTED_LIMITS":
-            st.info(
-                "No qualifying local bypass was identified within "
-                "the tested 12 km search area. This does not prove "
-                "that no alternative road exists."
-            )
+            # The shared warning is displayed below for Panthali
+            # and Larcha; avoid duplicating the message here.
+            pass
         else:
             st.info(
                 "Local bypass assessment has not yet been completed "
