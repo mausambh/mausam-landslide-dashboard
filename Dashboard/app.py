@@ -1457,10 +1457,27 @@ if page == "Landslide Route Explorer":
             "Dashboard/arniko_local_bypass_status.csv"
         )
 
+        # Only the six approved Arniko scenarios appear
+        # in the public explorer. Research files are unchanged.
+        public_arniko_scenarios = {
+            (0, 40),  # Dolalghat
+            (0, 80),  # Itafu
+            (1, 20),  # Dandakateri
+            (1, 40),  # Gati
+            (1, 60),  # Panthali
+            (1, 80),  # Larcha
+        }
+
         options = [
             (int(r.component), int(r.closure_position_pct))
             for r in scenarios.itertuples()
+            if (int(r.component), int(r.closure_position_pct))
+            in public_arniko_scenarios
         ]
+
+        assert len(options) == 6, (
+            "Expected exactly six public Arniko scenarios."
+        )
 
         selected = st.selectbox(
             "Choose a simulated road blockage",
@@ -1707,7 +1724,22 @@ if page == "Landslide Route Explorer":
         "does not predict that a landslide will occur there."
     )
 
-    if subset.empty or geo_subset.empty:
+    no_bypass_scenario = (
+        highway.startswith("Arniko")
+        and selected in [(1, 60), (1, 80)]
+    )
+
+    if no_bypass_scenario:
+        st.warning(
+            "⚠️ No qualifying local bypass identified under "
+            "the tested search constraints.\n\n"
+            "No qualifying alternative route was identified "
+            "in the available road network under the tested "
+            "conditions. This does not prove that no alternative "
+            "road exists. Road conditions and passability "
+            "have not been field-verified."
+        )
+    elif subset.empty or geo_subset.empty:
         st.warning(
             "No validated alternative geometry is available "
             "for this selection."
