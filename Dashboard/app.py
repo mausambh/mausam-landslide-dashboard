@@ -1566,6 +1566,25 @@ if page == "Landslide Route Explorer":
             subset = subset.loc[
                 subset["alternative_rank"].astype(int) == 1
             ].copy()
+
+            # Salgarhi has a validated local bypass GeoJSON,
+            # but no corresponding original research result row.
+            # Build a presentation-only row without changing
+            # the original research data.
+            if selected == (0, 60) and subset.empty:
+                subset = pd.DataFrame([{
+                    "component": 0,
+                    "closure_position_pct": 60,
+                    "scenario_id": "ARNIKO_C0_60",
+                    "alternative_rank": selected_route_rank,
+                    "distance_km": float(
+                        selected_local_route["distance_km"]
+                    ),
+                    "matched_rf_score": float("nan"),
+                    "coverage_pct": float("nan"),
+                    "additional_distance_km": float("nan")
+                }])
+
             subset["alternative_rank"] = selected_route_rank
             subset["distance_km"] = float(
                 selected_local_route["distance_km"]
