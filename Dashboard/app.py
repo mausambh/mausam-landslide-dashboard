@@ -634,7 +634,20 @@ def render_highway_research(highway):
                 f"closure at {int(row['closure_position_pct'])}%"
             )
 
-        summary = arniko_status.copy()
+        # Public research summary matches the approved explorer.
+        # Original 12-scenario research data remains unchanged.
+        public_ids = [
+            "ARNIKO_C0_40",  # Dolalghat
+            "ARNIKO_C0_80",  # Itafu
+            "ARNIKO_C1_20",  # Dandakateri
+            "ARNIKO_C1_40",  # Gati
+            "ARNIKO_C1_60",  # Panthali
+            "ARNIKO_C1_80",  # Larcha
+        ]
+        summary = arniko_status.loc[
+            arniko_status["scenario_id"].isin(public_ids)
+        ].copy()
+        assert len(summary) == 6
         summary["Scenario"] = summary["display_name"]
         summary["Road"] = "NH34"
         summary["Original distance (km)"] = float("nan")
@@ -648,7 +661,9 @@ def render_highway_research(highway):
             "VALIDATED_GRAPH_DERIVED_BYPASS":
                 "Local bypass identified",
             "NO_BYPASS_FOUND_WITHIN_TESTED_LIMITS":
-                "No qualifying bypass found within 12 km",
+                "No qualifying bypass under tested constraints",
+            "NO_QUALIFYING_BYPASS_UNDER_TESTED_CONSTRAINTS":
+                "No qualifying bypass under tested constraints",
             "NOT_ASSESSED_REVISED_METHODOLOGY":
                 "Local bypass assessment pending",
         }
@@ -656,6 +671,12 @@ def render_highway_research(highway):
         summary["Result"] = (
             summary["assessment_status"].map(status_labels)
         )
+        summary.loc[
+            summary["scenario_id"] == "ARNIKO_C0_80", "Result"
+        ] = "3 local alternatives identified"
+        summary.loc[
+            summary["scenario_id"] == "ARNIKO_C1_40", "Result"
+        ] = "Provisional local bypass identified"
 
         total_scenarios = len(summary)
         detours = int((
