@@ -577,21 +577,30 @@ def render_highway_research(highway):
 
         scenario_cols = ["component", "closure_position_pct"]
 
-        scenarios = (
-            results[scenario_cols]
-            .drop_duplicates()
-            .sort_values(scenario_cols)
+        arniko_status = load_csv(
+            "Dashboard/arniko_local_bypass_status.csv"
+        )
+
+        scenarios = load_csv(
+            "Routes/arniko_highway_wide_closure_scenarios.csv"
         )
 
         options = [
             (int(r.component), int(r.closure_position_pct))
-            for r in scenarios.itertuples()
+            for r in scenarios.sort_values(
+                scenario_cols
+            ).itertuples()
         ]
 
+        location_names = dict(zip(
+            arniko_status["scenario_id"],
+            arniko_status["display_name"]
+        ))
+
         def label(option):
-            return (
-                f"Arniko component {option[0]} — "
-                f"closure at {option[1]}%"
+            scenario_id = f"ARNIKO_C{option[0]}_{option[1]}"
+            return location_names.get(
+                scenario_id, "Saved Arniko closure location"
             )
 
         def select_results(option):
@@ -625,24 +634,38 @@ def render_highway_research(highway):
                 f"closure at {int(row['closure_position_pct'])}%"
             )
 
-        summary = closure_scenarios.copy()
-        summary["Scenario"] = summary.apply(
-            arniko_scenario_label, axis=1
-        )
+        summary = arniko_status.copy()
+        summary["Scenario"] = summary["display_name"]
         summary["Road"] = "NH34"
-        summary["Original distance (km)"] = summary["normal_network_km"]
-        summary["Alternative distance (km)"] = summary["post_closure_km"]
-        summary["Extra distance (km)"] = summary["additional_km"]
-        summary["Distance increase (%)"] = summary["increase_pct"]
-        summary["Result"] = summary["status"].map(
-            lambda x: "Detour found"
-            if str(x).upper() == "DETOUR_FOUND"
-            else "No route in modeled graph"
+        summary["Original distance (km)"] = float("nan")
+        summary["Alternative distance (km)"] = (
+            summary["shortest_local_bypass_km"]
+        )
+        summary["Extra distance (km)"] = float("nan")
+        summary["Distance increase (%)"] = float("nan")
+
+        status_labels = {
+            "VALIDATED_GRAPH_DERIVED_BYPASS":
+                "Local bypass identified",
+            "NO_BYPASS_FOUND_WITHIN_TESTED_LIMITS":
+                "No qualifying bypass found within 12 km",
+            "NOT_ASSESSED_REVISED_METHODOLOGY":
+                "Local bypass assessment pending",
+        }
+
+        summary["Result"] = (
+            summary["assessment_status"].map(status_labels)
         )
 
         total_scenarios = len(summary)
-        detours = len(options)
-        total_alternatives = len(results)
+        detours = int((
+            summary["assessment_status"]
+            == "VALIDATED_GRAPH_DERIVED_BYPASS"
+        ).sum())
+        total_alternatives = int(
+            summary["validated_alternative_count"]
+            .fillna(0).sum()
+        )
 
         limitations = (
             "Arniko alternatives are distance-ranked, graph-valid "
@@ -766,10 +789,18 @@ def render_highway_research(highway):
             hide_index=True
         )
 
-        st.caption(
-            "No route in modeled graph does not imply that "
-            "no real-world alternative road exists."
-        )
+        if highway == "arniko":
+            st.caption(
+                "Local bypass distances are not full-journey "
+                "distances. Unassessed scenarios are not evidence "
+                "that no alternative road exists. Locations are "
+                "based on OSM candidates pending manual review."
+            )
+        else:
+            st.caption(
+                "No route in modeled graph does not imply that "
+                "no real-world alternative road exists."
+            )
 
         st.subheader("Select a Closure Scenario")
 
@@ -1414,10 +1445,16 @@ if page == "Landslide Route Explorer":
             "Routes/arniko_5km_corridor_alternative_routes.geojson"
         )
 
-        scenarios = (
-            results[["component", "closure_position_pct"]]
-            .drop_duplicates()
-            .sort_values(["component", "closure_position_pct"])
+        scenarios = load_csv(
+            "Routes/arniko_highway_wide_closure_scenarios.csv"
+        )
+
+        scenarios = scenarios.sort_values(
+            ["component", "closure_position_pct"]
+        )
+
+        arniko_status = load_csv(
+            "Dashboard/arniko_local_bypass_status.csv"
         )
 
         options = [
@@ -1444,11 +1481,44 @@ if page == "Landslide Route Explorer":
             (routes["closure_position_pct"] == selected[1])
         ].copy()
 
+        selected_scenario_id = (
+            f"ARNIKO_C{selected[0]}_{selected[1]}"
+        )
+
+        assessment = arniko_status.loc[
+            arniko_status["scenario_id"] == selected_scenario_id
+        ]
+
+        assert len(assessment) == 1
+        assessment_status = assessment.iloc[0]["assessment_status"]
+
+        if assessment_status == "VALIDATED_GRAPH_DERIVED_BYPASS":
+            st.success("Graph-derived local bypass identified.")
+        elif assessment_status == "NO_BYPASS_FOUND_WITHIN_TESTED_LIMITS":
+            st.info(
+                "No qualifying local bypass was identified within "
+                "the tested 12 km search area. This does not prove "
+                "that no alternative road exists."
+            )
+        else:
+            st.info(
+                "Local bypass assessment has not yet been completed "
+                "for this simulated closure."
+            )
+
+        # The original route geometries represent the earlier
+        # full-journey methodology. Only the four validated local
+        # bypass scenarios should use geometry in this explorer.
+        if assessment_status != "VALIDATED_GRAPH_DERIVED_BYPASS":
+            subset = subset.iloc[0:0].copy()
+            geo_subset = geo_subset.iloc[0:0].copy()
+
         # Dolalghat: local graph-derived bypass for map presentation only.
         # Original research routes and RF results remain untouched.
-        if selected in [(0, 40), (0, 80), (1, 20), (1, 40)]:
+        if selected in [(0, 40), (0, 60), (0, 80), (1, 20), (1, 40)]:
             local_filename = {
                 (0, 40): "dashboard_dolalghat_local_bypass.geojson",
+                (0, 60): "dashboard_salgarhi_local_bypass.geojson",
                 (0, 80): "dashboard_itafu_local_bypass.geojson",
                 (1, 20): "dashboard_dandakateri_local_bypass.geojson",
                 (1, 40): "dashboard_arniko_c1_40_local_bypass.geojson",
@@ -1630,7 +1700,7 @@ if page == "Landslide Route Explorer":
 
         is_dolalghat_local = (
             highway.startswith("Arniko")
-            and selected in [(0, 40), (0, 80), (1, 20), (1, 40)]
+            and selected in [(0, 40), (0, 60), (0, 80), (1, 20), (1, 40)]
         )
 
         c1.metric(
@@ -1704,7 +1774,7 @@ if page == "Landslide Route Explorer":
                 scenario_id=(
                     f"ARNIKO_C{selected[0]}_{selected[1]}"
                     if highway.startswith("Arniko")
-                    and selected in [(0, 40), (0, 80), (1, 20), (1, 40)]
+                    and selected in [(0, 40), (0, 60), (0, 80), (1, 20), (1, 40)]
                     else None if highway.startswith("Arniko")
                     else selected
                 )
@@ -1811,7 +1881,7 @@ if page == "Landslide Route Explorer":
             # alternative even though the map shows only the selected one.
             if (
                 highway.startswith("Arniko")
-                and selected in [(0, 40), (0, 80), (1, 20), (1, 40)]
+                and selected in [(0, 40), (0, 60), (0, 80), (1, 20), (1, 40)]
             ):
                 comparison_display = (
                     available_local_routes[
