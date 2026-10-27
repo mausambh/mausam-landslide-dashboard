@@ -762,11 +762,11 @@ def render_highway_research(highway):
         summary["Alternative distance (km)"] = summary["alternative_km"]
         summary["Extra distance (km)"] = summary["additional_km"]
         summary["Distance increase (%)"] = summary["additional_pct"]
-        summary["Result"] = summary["status"].map(
-            lambda x: "Detour found"
-            if str(x).upper() == "DETOUR_FOUND"
-            else "No route in modeled graph"
-        )
+        summary["Result"] = summary["status"].map({
+            "DETOUR_FOUND": "Detour found",
+            "NO_ROUTE_IN_GRAPH": "No route in modeled graph",
+            "NO_MEANINGFUL_CHANGE": "No meaningful route change",
+        }).fillna("Other research outcome")
 
         total_scenarios = len(scenarios)
         detours = int(
@@ -802,6 +802,159 @@ def render_highway_research(highway):
     else:
         b.metric("Detours found", detours)
         c.metric("Alternative routes", total_alternatives)
+
+    # Public demonstration overview, separate from full research results.
+    st.subheader("Public Scenario Overview")
+
+    location_catalogue = load_csv(
+        "Dashboard/scenario_location_catalogue.csv"
+    )
+
+    if highway == "arniko":
+        public_ids = [
+            "ARNIKO_C0_40",
+            "ARNIKO_C0_80",
+            "ARNIKO_C1_20",
+            "ARNIKO_C1_40",
+            "ARNIKO_C1_60",
+            "ARNIKO_C1_80",
+        ]
+
+        public_data = load_csv(
+            "Dashboard/arniko_local_bypass_status.csv"
+        )
+
+        public_data = public_data.set_index(
+            "scenario_id"
+        ).loc[public_ids].reset_index()
+
+        status_labels = {
+            "VALIDATED_GRAPH_DERIVED_BYPASS":
+                "Graph-derived bypass candidate",
+            "PROVISIONAL_GRAPH_DERIVED_BYPASS":
+                "Provisional bypass candidate",
+            "NO_BYPASS_FOUND_WITHIN_TESTED_LIMITS":
+                "No qualifying local bypass",
+            "NO_QUALIFYING_BYPASS_UNDER_TESTED_CONSTRAINTS":
+                "No qualifying local bypass",
+        }
+
+        public_data["Outcome"] = (
+            public_data["assessment_status"]
+            .map(status_labels)
+            .fillna("See research assessment")
+        )
+
+        public_data["Local bypass (km)"] = (
+            pd.to_numeric(
+                public_data["shortest_local_bypass_km"],
+                errors="coerce"
+            ).round(2)
+        )
+
+        public_data["Evidence"] = public_data[
+            "assessment_status"
+        ].map({
+            "VALIDATED_GRAPH_DERIVED_BYPASS":
+                "Graph-valid candidate; not field-verified",
+            "PROVISIONAL_GRAPH_DERIVED_BYPASS":
+                "Provisional; blocked-edge avoidance not reproduced",
+            "NO_BYPASS_FOUND_WITHIN_TESTED_LIMITS":
+                "No qualifying bypass under tested limits",
+            "NO_QUALIFYING_BYPASS_UNDER_TESTED_CONSTRAINTS":
+                "No qualifying bypass under tested constraints",
+        })
+
+        public_data["Highway"] = "Arniko"
+
+    else:
+        public_ids = [
+            "JUNCTION_1",
+            "NH42_S1_25",
+            "NH42_S1_75",
+            "NH42_S0_50",
+            "NH18_S1_50",
+            "NH18_S1_75",
+        ]
+
+        public_data = load_csv(
+            "Results/pasang_final_17_scenario_research_table.csv"
+        )
+
+        public_data = public_data.set_index(
+            "scenario_id"
+        ).loc[public_ids].reset_index()
+
+        public_data["Outcome"] = public_data["status"].map({
+            "DETOUR_FOUND": "Detour found",
+            "NO_ROUTE_IN_GRAPH": "No route in modeled graph",
+            "NO_MEANINGFUL_CHANGE": "No meaningful route change",
+        }).fillna("See research assessment")
+
+        public_data["Local bypass (km)"] = pd.to_numeric(
+            public_data["alternative_km"],
+            errors="coerce"
+        ).round(2)
+
+        # Corrected Junction 1 geometry is used for the public map.
+        # Preserve the original research result in its source CSV.
+        public_data.loc[
+            public_data["scenario_id"] == "JUNCTION_1",
+            "Local bypass (km)"
+        ] = 4.346
+
+        public_data["Evidence"] = (
+            "Modeled graph result; not field-verified"
+        )
+
+        public_data.loc[
+            public_data["scenario_id"] == "JUNCTION_1",
+            "Evidence"
+        ] = "Corrected local bypass geometry; not field-verified"
+
+        public_data["Highway"] = "Pasang Lhamu"
+
+    location_lookup = location_catalogue[
+        ["highway", "scenario_id", "location_label"]
+    ].drop_duplicates(subset=["highway", "scenario_id"])
+
+    public_data = public_data.merge(
+        location_lookup,
+        left_on=["Highway", "scenario_id"],
+        right_on=["highway", "scenario_id"],
+        how="left",
+        validate="one_to_one"
+    )
+
+    assert len(public_data) == 6
+    assert public_data["location_label"].notna().all()
+
+    public_display = public_data.rename(columns={
+        "scenario_id": "Scenario ID",
+        "location_label": "Location",
+    })[
+        [
+            "Location",
+            "Scenario ID",
+            "Outcome",
+            "Local bypass (km)",
+            "Evidence",
+        ]
+    ]
+
+    st.dataframe(
+        public_display,
+        width="stretch",
+        hide_index=True
+    )
+
+    st.caption(
+        "Six selected public demonstrations; the full research "
+        "scenario table remains available below. Distances are "
+        "scenario-specific modeled alternatives, not necessarily "
+        "complete journeys. A missing distance does not establish "
+        "that no real-world bypass exists."
+    )
 
     with st.expander(
         "Detailed route scenarios and research results",
@@ -1471,6 +1624,42 @@ def route_map(gdf, selected=None, closure_point=None, closure_label=None, highwa
 
         # Landmark markers are attached directly to the map.
 
+    # Modeled highway exit and connection for Junction 1 only.
+    if highway_name == "Pasang Lhamu" and scenario_id == "JUNCTION_1":
+        route_info = gdf.iloc[0]
+        route_coords = list(route_info.geometry.coords)
+
+        junction_points = [
+            (
+                "Pipal Taar, Bidur-05 — modeled bypass entry",
+                route_coords[0],
+                "#16a34a",
+            ),
+            (
+                "Bidur-04 — modeled bypass exit",
+                route_coords[-1],
+                "#f97316",
+            ),
+        ]
+
+        for label, (lon, lat), color in junction_points:
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=7,
+                color="white",
+                weight=2,
+                fill=True,
+                fill_color=color,
+                fill_opacity=1,
+                tooltip=label,
+                popup=folium.Popup(
+                    f"<b>{label}</b><br>"
+                    "Graph-derived corridor connection; "
+                    "not field-verified.",
+                    max_width=300,
+                ),
+            ).add_to(m)
+
     folium.LayerControl(
         collapsed=True
     ).add_to(m)
@@ -1488,6 +1677,137 @@ def route_map(gdf, selected=None, closure_point=None, closure_label=None, highwa
         "or forecasts. Route lines show validated modeled "
         "alternatives, not field-verified safe roads."
     )
+
+
+def closure_only_map(highway, selected):
+    """Show a saved simulated closure without inventing a detour."""
+    closure_point = get_saved_closure_reference(highway, selected)
+
+    if closure_point is None:
+        st.warning("No saved geographic reference is available.")
+        return
+
+    lat, lon = closure_point
+
+    m = folium.Map(
+        location=[lat, lon],
+        zoom_start=13,
+        tiles="OpenStreetMap",
+        control_scale=True
+    )
+
+    # Use only saved closure geometries.
+    closure_geometry = None
+
+    if highway.startswith("Pasang"):
+        if str(selected).startswith("JUNCTION_"):
+            junction_id = int(str(selected).split("_")[1])
+            footprints = load_geojson(
+                "Routes/pasang_nh18_nh42_junction_footprints.geojson"
+            )
+            match = footprints.loc[
+                footprints["junction_id"] == junction_id
+            ]
+        else:
+            parts = str(selected).split("_")
+            match = gpd.GeoDataFrame()
+
+            if len(parts) == 3:
+                designation = parts[0]
+                section_id = int(parts[1][1:])
+                position = int(parts[2])
+
+                footprints = load_geojson(
+                    "Routes/pasang_northern_nh18_nh42_locations_corrected.geojson"
+                )
+                match = footprints.loc[
+                    (footprints["designation"] == designation)
+                    & (footprints["section_id"] == section_id)
+                    & (footprints["closure_position_pct"] == position)
+                ]
+
+        if len(match) == 1:
+            closure_geometry = match.geometry.iloc[0]
+
+    # Display nearby RF-scored highway sections as optional context.
+    sections = load_geojson(
+        "Data/two_highway_rf_road_sections_rebuilt_2018.geojson"
+    )
+
+    pad = 0.025
+    nearby = sections.cx[
+        lon - pad : lon + pad,
+        lat - pad : lat + pad
+    ].copy()
+
+    highway_layer = folium.FeatureGroup(
+        name="RF-scored highway sections (2018)",
+        show=False
+    )
+
+    for _, row in nearby.iterrows():
+        if row.geometry is None or row.geometry.is_empty:
+            continue
+
+        folium.GeoJson(
+            row.geometry.__geo_interface__,
+            style_function=lambda feature: {
+                "color": "#64748b",
+                "weight": 3,
+                "opacity": 0.7
+            },
+            tooltip="Modeled highway section (2018)"
+        ).add_to(highway_layer)
+
+    highway_layer.add_to(m)
+
+    # Highlight the saved modeled closure footprint when available.
+    if closure_geometry is not None and not closure_geometry.is_empty:
+        folium.GeoJson(
+            closure_geometry.__geo_interface__,
+            name="Saved simulated closure footprint",
+            style_function=lambda feature: {
+                "color": "#dc2626",
+                "weight": 6,
+                "opacity": 0.95,
+                "fillColor": "#dc2626",
+                "fillOpacity": 0.18
+            },
+            tooltip="Simulated closure — not an observed landslide"
+        ).add_to(m)
+
+        minx, miny, maxx, maxy = closure_geometry.bounds
+        if maxx > minx and maxy > miny:
+            m.fit_bounds([[miny, minx], [maxy, maxx]])
+
+    folium.CircleMarker(
+        location=[lat, lon],
+        radius=9,
+        color="white",
+        weight=3,
+        fill=True,
+        fill_color="#dc2626",
+        fill_opacity=1,
+        tooltip=public_closure_label(highway, selected),
+        popup=(
+            public_closure_label(highway, selected)
+            + "<br>Saved simulated closure reference"
+            + "<br>Not an observed landslide"
+        )
+    ).add_to(m)
+
+    folium.LayerControl(collapsed=True).add_to(m)
+
+    st_folium(m, height=550, width="stretch")
+
+    st.caption(
+        "Red indicates a saved simulated closure. "
+        "For Arniko, the red point is a reference location, "
+        "not an exact blocked-road geometry. "
+        "No alternative route is displayed because none was "
+        "identified in the modeled network under the tested conditions."
+    )
+
 
 def comparison_chart(df, distance_col, score_col, label_col):
     plot = df.copy()
@@ -1743,7 +2063,40 @@ if page == "Landslide Route Explorer":
             crs="EPSG:4326"
         )
 
-        options = sorted(results["scenario_id"].unique())
+        # Six public scenarios selected for the local-detour demonstration.
+        # Research CSV and GeoJSON files remain unchanged.
+        public_scenarios = [
+            "JUNCTION_1",   # Pipal Taar
+            "NH42_S1_25",   # Near Batar Bazaar
+            "NH42_S1_75",   # Near Trishuli
+            "NH42_S0_50",   # Near Gerkhu
+            "NH18_S1_50",   # Near Ramche
+            "NH18_S1_75",   # Near Dhunche
+        ]
+
+        # Scenarios with NO_ROUTE_IN_GRAPH legitimately have no
+        # rows in the alternatives CSV.
+        scenario_research = load_csv(
+            "Results/pasang_final_17_scenario_research_table.csv"
+        )
+
+        known_scenarios = set(
+            scenario_research["scenario_id"].astype(str)
+        )
+
+        missing = [
+            sid for sid in public_scenarios
+            if sid not in known_scenarios
+        ]
+
+        if missing:
+            st.error(
+                "Saved scenario metadata is missing for: "
+                + ", ".join(missing)
+            )
+            st.stop()
+
+        options = public_scenarios
 
         selected = st.selectbox(
             "Choose a simulated road blockage",
@@ -1761,6 +2114,26 @@ if page == "Landslide Route Explorer":
         geo_subset = routes.loc[
             routes["scenario_id"] == selected
         ].copy()
+
+        # Display only selected local-detour alternatives.
+        # Keep every original alternative in the research datasets.
+        public_route_ranks = {
+            "NH42_S2_25": [1, 2, 3],
+            "NH42_S2_50": [1, 2, 3],
+            "NH42_S1_25": [1, 2],
+            "NH42_S1_75": [1],
+        }
+
+        if selected in public_route_ranks:
+            allowed_ranks = public_route_ranks[selected]
+
+            subset = subset.loc[
+                subset["alternative_rank"].astype(int).isin(allowed_ranks)
+            ].copy()
+
+            geo_subset = geo_subset.loc[
+                geo_subset["alternative_rank"].astype(int).isin(allowed_ranks)
+            ].copy()
 
         # Junction 1: dashboard-derived complete NH18-to-NH42 bypasses.
         # Original research routes and RF results remain unchanged.
@@ -1812,10 +2185,31 @@ if page == "Landslide Route Explorer":
         "does not predict that a landslide will occur there."
     )
 
-    no_bypass_scenario = (
-        highway.startswith("Arniko")
-        and selected in [(1, 60), (1, 80)]
-    )
+    # Determine the outcome from saved scenario metadata,
+    # rather than a hard-coded list of scenario identifiers.
+    if highway.startswith("Arniko"):
+        closure_metadata = load_geojson(
+            "Routes/arniko_highway_wide_closure_locations.geojson"
+        )
+        status_match = closure_metadata.loc[
+            (closure_metadata["component"] == selected[0])
+            & (closure_metadata["position_pct"] == selected[1])
+        ]
+    else:
+        status_match = scenario_research.loc[
+            scenario_research["scenario_id"].astype(str) == str(selected)
+        ]
+
+    if len(status_match) != 1:
+        st.error(
+            "Expected exactly one saved outcome for the selected "
+            "scenario. Cannot safely determine its routing status."
+        )
+        st.stop()
+
+    selected_status = str(status_match.iloc[0]["status"])
+
+    no_bypass_scenario = selected_status == "NO_ROUTE_IN_GRAPH"
 
     if no_bypass_scenario:
         st.warning(
@@ -1827,13 +2221,27 @@ if page == "Landslide Route Explorer":
             "road exists. Road conditions and passability "
             "have not been field-verified."
         )
+
+        st.subheader("Simulated blockage location")
+        st.markdown(
+            "**Selected simulated blockage:** "
+            + public_closure_label(highway, selected)
+        )
+        closure_only_map(highway, selected)
+
     elif subset.empty or geo_subset.empty:
         st.warning(
             "No validated alternative geometry is available "
             "for this selection."
         )
     else:
-        shortest = subset.iloc[0]
+        # Select the shortest displayed route by actual distance,
+        # without changing the map or table's alternative ranks.
+        shortest = subset.loc[
+            pd.to_numeric(
+                subset["distance_km"], errors="coerce"
+            ).idxmin()
+        ]
 
         c1, c2, c3 = st.columns(3)
 
@@ -1844,6 +2252,8 @@ if page == "Landslide Route Explorer":
 
         c1.metric(
             "Local bypass distance" if is_dolalghat_local
+            else "Shortest modeled local detour"
+            if highway.startswith("Pasang")
             else "Shortest available alternative",
             f"{float(shortest['distance_km']):.2f} km"
         )
@@ -1934,11 +2344,14 @@ if page == "Landslide Route Explorer":
             if highway == "Pasang Lhamu" and selected == "JUNCTION_1":
                 st.caption(
                     "Junction 1 shows one dashboard-derived, graph-based "
-                    "NH18-to-NH42 bypass segment (4.346 km). Its departure "
-                    "is the mapped NH18 exit junction, not the beginning "
-                    "of the overall journey. The route avoids the modeled "
-                    "closure but has not been field-verified. Original "
-                    "research RF scores do not evaluate this new route."
+                    "local bypass segment (4.346 km), from the modeled "
+                    "entry near Pipal Taar, Bidur-05, to the modeled "
+                    "exit in Bidur-04. These endpoints are based on "
+                    "saved route geometry and nearby OSM locality data; "
+                    "their road connections and drivability have not "
+                    "been independently verified. The route avoids "
+                    "the modeled closure, but has not been field-verified. "
+                    "Original research RF scores do not evaluate this route."
                 )
 
             if selected == (1, 40) and highway.startswith("Arniko"):
