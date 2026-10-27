@@ -1045,9 +1045,34 @@ def render_highway_research(highway):
 
         st.subheader("Select a Closure Scenario")
 
+        # Public demonstrations use six selected scenarios per highway.
+        # The complete research results table above remains unchanged.
+        if highway == "arniko":
+            public_options = [
+                (0, 40),  # Dolalghat
+                (0, 80),  # Itafu
+                (1, 20),  # Dandakateri
+                (1, 40),  # Gati
+                (1, 60),  # Panthali
+                (1, 80),  # Larcha
+            ]
+        else:
+            public_options = [
+                "JUNCTION_1",
+                "NH42_S1_25",
+                "NH42_S1_75",
+                "NH42_S0_50",
+                "NH18_S1_50",
+                "NH18_S1_75",
+            ]
+
+        assert all(option in options for option in public_options), (
+            "Public scenario missing from research options"
+        )
+
         selected = st.selectbox(
             "Hypothetical road closure",
-            options,
+            public_options,
             format_func=label,
             key=f"{highway}_unified_scenario"
         )
@@ -1055,40 +1080,63 @@ def render_highway_research(highway):
         subset = select_results(selected)
         selected_overlap = select_overlap(selected)
 
-        st.subheader("Alternative Route Comparison")
+        if subset.empty:
+            st.info(
+                "No qualifying alternative-route results are available "
+                "for this simulated closure in the saved research data. "
+                "This does not establish that no real-world bypass exists."
+            )
+        else:
+            st.subheader("Alternative Route Comparison")
 
-        comparison = pd.DataFrame({
-            "Alternative": subset["alternative_rank"],
-            "Distance (km)": subset[distance_col],
-            "Extra distance (km)": subset[extra_col],
-            "Extra distance (%)": subset[extra_pct_col],
-            "2018 RF exposure score": subset[exposure_col],
-            "RF coverage (%)": subset[coverage_col],
-            "Graph valid": subset[valid_col]
-        })
+            comparison = pd.DataFrame({
+                "Alternative": subset["alternative_rank"],
+                "Distance (km)": subset[distance_col],
+                "Extra distance (km)": subset[extra_col],
+                "Extra distance (%)": subset[extra_pct_col],
+                "2018 RF exposure score": subset[exposure_col],
+                "RF coverage (%)": subset[coverage_col],
+                "Graph valid": subset[valid_col]
+            })
 
-        st.dataframe(
-            comparison.round(3),
-            width="stretch",
-            hide_index=True
-        )
+            st.dataframe(
+                comparison.round(3),
+                width="stretch",
+                hide_index=True
+            )
 
-        st.subheader("Distance versus Retrospective RF Exposure")
+            st.subheader("Distance versus Retrospective RF Exposure")
 
-        comparison_chart(
-            subset,
-            distance_col,
-            exposure_col,
-            "alternative_rank"
-        )
+            chart_data = subset.dropna(
+                subset=[distance_col, exposure_col]
+            )
 
-        st.subheader("Route Overlap")
+            if chart_data.empty:
+                st.info(
+                    "No paired route-distance and retrospective RF "
+                    "exposure values are available for this scenario."
+                )
+            else:
+                comparison_chart(
+                    chart_data,
+                    distance_col,
+                    exposure_col,
+                    "alternative_rank"
+                )
 
-        st.dataframe(
-            selected_overlap.round(3),
-            width="stretch",
-            hide_index=True
-        )
+            st.subheader("Route Overlap")
+
+            if selected_overlap.empty:
+                st.info(
+                    "No route-overlap comparison is available "
+                    "for this scenario."
+                )
+            else:
+                st.dataframe(
+                    selected_overlap.round(3),
+                    width="stretch",
+                    hide_index=True
+                )
 
         st.info(limitations)
 
