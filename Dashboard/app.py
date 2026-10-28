@@ -903,9 +903,51 @@ def render_highway_research(highway):
             "Local bypass (km)"
         ] = 4.346
 
+        # NH42 public summary correction:
+        # Use validated local bypasses for display only.
+        # Original fixed-endpoint research CSV remains unchanged.
+        nh42_local = load_geojson(
+            "Routes/pasang_nh42_validated_local_bypasses.geojson"
+        )
+
+        nh42_counts = nh42_local.groupby("scenario_id").size()
+        nh42_shortest = (
+            nh42_local.sort_values("alternative_km")
+            .drop_duplicates("scenario_id")
+            .set_index("scenario_id")["alternative_km"]
+        )
+
+        for sid in ("NH42_S1_25", "NH42_S1_75"):
+            assert sid in nh42_shortest.index
+            assert (public_data["scenario_id"] == sid).sum() == 1
+
+            public_data.loc[
+                public_data["scenario_id"] == sid,
+                "Local bypass (km)"
+            ] = round(float(nh42_shortest.loc[sid]), 2)
+
+            count = int(nh42_counts.loc[sid])
+            public_data.loc[
+                public_data["scenario_id"] == sid,
+                "Outcome"
+            ] = (
+                f"{count} graph-derived local bypass alternatives"
+                if count > 1
+                else "1 graph-derived local bypass"
+            )
+
         public_data["Evidence"] = (
             "Modeled graph result; not field-verified"
         )
+
+        for sid in ("NH42_S1_25", "NH42_S1_75"):
+            public_data.loc[
+                public_data["scenario_id"] == sid,
+                "Evidence"
+            ] = (
+                "Closure-edge avoidance and NH42 connections "
+                "checked; road suitability not field-verified"
+            )
 
         public_data.loc[
             public_data["scenario_id"] == "JUNCTION_1",
@@ -1376,13 +1418,21 @@ def route_map(gdf, selected=None, closure_point=None, closure_label=None, highwa
         and scenario_id in ("ARNIKO_C0_40", "ARNIKO_C0_80")
     )
 
+    preserve_route_ranks = (
+        is_local_arniko
+        or (
+            highway_name == "Pasang Lhamu"
+            and scenario_id in ("NH42_S1_25", "NH42_S1_75")
+        )
+    )
+
     original_ranks = sorted(
         int(r) for r in gdf["alternative_rank"].dropna().unique()
     )
 
     display_ranks = (
         {rank: rank for rank in original_ranks}
-        if is_local_arniko
+        if preserve_route_ranks
         else {
             original_rank: display_rank
             for display_rank, original_rank in enumerate(
@@ -1790,7 +1840,7 @@ def closure_only_map(highway, selected):
 
     highway_layer = folium.FeatureGroup(
         name="RF-scored highway sections (2018)",
-        show=False
+        show=True
     )
 
     for _, row in nearby.iterrows():
@@ -2223,6 +2273,73 @@ if page == "Landslide Route Explorer":
                 .map(corrected_distances)
             )
 
+        # New graph-validated NH42 local bypasses.
+        # Original research data and RF results remain unchanged.
+        is_nh42_local = selected in ("NH42_S1_25", "NH42_S1_75")
+
+        if is_nh42_local:
+            local_path = (
+                Path(__file__).resolve().parents[1]
+                / "Routes"
+                / "pasang_nh42_validated_local_bypasses.geojson"
+            )
+
+            available_nh42_routes = (
+                gpd.read_file(local_path)
+                .to_crs("EPSG:4326")
+            )
+
+            available_nh42_routes = available_nh42_routes.loc[
+                available_nh42_routes["scenario_id"] == selected
+            ].sort_values("alternative_rank").copy()
+
+            assert not available_nh42_routes.empty
+
+            if len(available_nh42_routes) > 1:
+                selected_nh42_rank = st.selectbox(
+                    "Choose one local bypass alternative",
+                    options=available_nh42_routes[
+                        "alternative_rank"
+                    ].astype(int).tolist(),
+                    format_func=lambda rank: (
+                        f"Alternative {rank} — "
+                        f"{float(available_nh42_routes.loc[available_nh42_routes['alternative_rank'] == rank, 'alternative_km'].iloc[0]):.3f} km"
+                    ),
+                    key=f"pasang_nh42_route_{selected}",
+                )
+            else:
+                selected_nh42_rank = 1
+
+            geo_subset = available_nh42_routes.loc[
+                available_nh42_routes["alternative_rank"].astype(int)
+                == selected_nh42_rank
+            ].copy()
+
+            geo_subset["distance_km"] = geo_subset["alternative_km"]
+            selected_nh42 = geo_subset.iloc[0]
+
+            subset = subset.iloc[:1].copy()
+            subset["alternative_rank"] = selected_nh42_rank
+            subset["distance_km"] = float(
+                selected_nh42["alternative_km"]
+            )
+            subset["extra_vs_shortest_km"] = float(
+                selected_nh42["additional_km"]
+            )
+            subset["length_weighted_rf_score_2018"] = float("nan")
+            subset["rf_coverage_pct"] = float("nan")
+
+            st.caption(
+                f"Selected local bypass: "
+                f"{float(selected_nh42['alternative_km']):.3f} km; "
+                f"additional distance versus the corresponding "
+                f"unblocked NH42 segment: "
+                f"+{float(selected_nh42['additional_km']):.3f} km "
+                f"({float(selected_nh42['additional_pct']):.1f}%). "
+                "Graph-derived; road passability and safety "
+                "have not been field-verified."
+            )
+
         score_col = "length_weighted_rf_score_2018"
         coverage_col = "rf_coverage_pct"
         extra_col = "extra_vs_shortest_km"
@@ -2299,7 +2416,11 @@ if page == "Landslide Route Explorer":
         )
 
         c1.metric(
-            "Local bypass distance" if is_dolalghat_local
+            "Selected local bypass distance"
+            if highway.startswith("Pasang")
+            and selected in ("NH42_S1_25", "NH42_S1_75")
+            else "Local bypass distance"
+            if is_dolalghat_local
             else "Shortest modeled local detour"
             if highway.startswith("Pasang")
             else "Shortest available alternative",
@@ -2310,6 +2431,10 @@ if page == "Landslide Route Explorer":
             c2.metric("Local bypass RF score", "Not evaluated")
         elif highway == "Pasang Lhamu" and selected == "JUNCTION_1":
             c2.metric("Complete-bypass RF score", "Not evaluated")
+        elif highway.startswith("Pasang") and selected in (
+            "NH42_S1_25", "NH42_S1_75"
+        ):
+            c2.metric("Local bypass RF score", "Not evaluated")
         elif pd.notna(shortest[score_col]):
             c2.metric(
                 "2018 route RF score",
@@ -2319,6 +2444,10 @@ if page == "Landslide Route Explorer":
             c2.metric("2018 route RF score", "Unavailable")
 
         if is_dolalghat_local:
+            c3.metric("Local bypass RF coverage", "Not evaluated")
+        elif highway.startswith("Pasang") and selected in (
+            "NH42_S1_25", "NH42_S1_75"
+        ):
             c3.metric("Local bypass RF coverage", "Not evaluated")
         elif pd.notna(shortest[coverage_col]):
             c3.metric(
@@ -2340,7 +2469,14 @@ if page == "Landslide Route Explorer":
         )
 
         state_key = "explorer_active_selection"
-        current_selection = (highway, str(selected))
+        current_selection = (
+            highway,
+            str(selected),
+            int(selected_nh42_rank)
+            if highway.startswith("Pasang")
+            and selected in ("NH42_S1_25", "NH42_S1_75")
+            else None,
+        )
 
         if show_routes:
             st.session_state[state_key] = current_selection
@@ -2437,18 +2573,26 @@ if page == "Landslide Route Explorer":
                     ]
                 ].copy()
 
-            # Dashboard-only consecutive numbering, consistent
-            # with the map and dynamic legend.
-            displayed_ranks = {
-                original_rank: display_rank
-                for display_rank, original_rank in enumerate(
-                    sorted(
-                        int(rank)
-                        for rank in geo_subset["alternative_rank"].dropna().unique()
-                    ),
-                    start=1
-                )
-            }
+            # Preserve validated NH42 alternative identities.
+            # Other routes retain their existing display numbering.
+            original_ranks = sorted(
+                int(rank)
+                for rank in geo_subset["alternative_rank"].dropna().unique()
+            )
+
+            if highway.startswith("Pasang") and selected in (
+                "NH42_S1_25", "NH42_S1_75"
+            ):
+                displayed_ranks = {
+                    rank: rank for rank in original_ranks
+                }
+            else:
+                displayed_ranks = {
+                    original_rank: display_rank
+                    for display_rank, original_rank in enumerate(
+                        original_ranks, start=1
+                    )
+                }
             display["alternative_rank"] = (
                 display["alternative_rank"]
                 .astype(int)
@@ -2498,6 +2642,26 @@ if page == "Landslide Route Explorer":
                     comparison_display["Alternative"].astype(int)
                 )
                 comparison_display = comparison_display.round(3)
+            elif highway.startswith("Pasang") and selected in (
+                "NH42_S1_25", "NH42_S1_75"
+            ):
+                comparison_display = available_nh42_routes[
+                    [
+                        "alternative_rank",
+                        "baseline_km",
+                        "alternative_km",
+                        "additional_km",
+                        "additional_pct",
+                    ]
+                ].copy().round(3)
+
+                comparison_display.columns = [
+                    "Alternative",
+                    "Original NH42 segment (km)",
+                    "Local bypass (km)",
+                    "Additional distance (km)",
+                    "Increase (%)",
+                ]
             else:
                 comparison_display = display.round(3).copy()
 
