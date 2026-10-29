@@ -1040,6 +1040,9 @@ def render_highway_research(highway):
         )
         assert pipal_overview_mask.sum() == 1
 
+        # Allow numeric distances and route descriptions in the same column.
+        public_data["Local bypass (km)"] = public_data["Local bypass (km)"].astype(object)
+
         public_data.loc[
             pipal_overview_mask, "Local bypass (km)"
         ] = pipal_overview_distances
