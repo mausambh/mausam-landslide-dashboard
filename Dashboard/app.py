@@ -68,6 +68,83 @@ colors = (
 st.markdown(
     f"""
     <style>
+
+    /* MOBILE_THEME_SINGLE_BUTTON_FIX_V1 */
+    @media (max-width: 600px) {{
+        .st-key-dashboard_theme_toggle
+        .stButton > div > button:not(
+            .stTooltipHoverTarget button
+        ) {{
+            display: none !important;
+        }}
+    }}
+
+/* MOBILE_THEME_WRAPPER_FIX_V1 */
+@media (max-width: 600px) {{
+    .st-key-dashboard_theme_toggle
+    [data-testid="stButton"] > div {{
+        display: block !important;
+        visibility: visible !important;
+    }}
+
+    .st-key-dashboard_theme_toggle button {{
+        display: flex !important;
+        visibility: visible !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+    }}
+}}
+
+
+/* DASHBOARD_RESPONSIVE_V1 */
+
+/* Tablet */
+@media (max-width: 900px) {{
+    .block-container {{
+        padding-left: 1.25rem !important;
+        padding-right: 1.25rem !important;
+    }}
+
+    [data-testid="stPlotlyChart"],
+    [data-testid="stVegaLiteChart"] {{
+        max-width: 100%;
+    }}
+}}
+
+/* Mobile */
+@media (max-width: 600px) {{
+    .block-container {{
+        padding-left: 0.8rem !important;
+        padding-right: 0.8rem !important;
+        padding-top: 1rem !important;
+    }}
+
+    h1 {{
+        font-size: 1.65rem !important;
+        line-height: 1.25 !important;
+    }}
+
+    h2 {{
+        font-size: 1.35rem !important;
+        line-height: 1.3 !important;
+    }}
+
+    h3 {{
+        font-size: 1.12rem !important;
+    }}
+
+    [data-testid="stMetric"] {{
+        min-width: 0;
+    }}
+
+    [data-testid="stDataFrame"],
+    [data-testid="stTable"],
+    [data-testid="stPlotlyChart"],
+    iframe {{
+        max-width: 100%;
+    }}
+}}
+
     .stApp {{
         background: {colors['background']};
         color: {colors['text']};
@@ -122,6 +199,26 @@ st.markdown(
     .st-key-research_sticky_header
     [data-testid="stCaptionContainer"] {{
         color: {colors['muted']} !important;
+    }}
+
+    /* MOBILE_THEME_BUTTON_VISIBILITY_V1 */
+    @media (max-width: 600px) {{
+        .st-key-dashboard_theme_toggle {{
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            min-width: 44px !important;
+        }}
+
+        .st-key-dashboard_theme_toggle button {{
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            min-width: 44px !important;
+            min-height: 44px !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }}
     }}
 
     /* Visible sun/moon button. */
@@ -723,7 +820,7 @@ def render_highway_research(highway):
             "Results/pasang_final_33_alternatives_overlap.csv"
         )
 
-        options = sorted(results["scenario_id"].dropna().unique())
+        options = sorted(scenarios["scenario_id"].dropna().unique())
 
         def label(option):
             row = scenarios.loc[
@@ -1464,6 +1561,56 @@ def route_map(gdf, selected=None, closure_point=None, closure_label=None, highwa
         ).add_to(layer)
 
         layer.add_to(m)
+
+        # NH42_LOCAL_ENDPOINT_MARKERS_V1
+        # These are modeled route endpoints, not field-verified access points.
+        if (
+            highway_name == "Pasang Lhamu"
+            and scenario_id in ("NH42_S1_25", "NH42_S1_75")
+        ):
+            geometry = row.geometry
+
+            if (
+                geometry is not None
+                and not geometry.is_empty
+                and geometry.geom_type == "LineString"
+            ):
+                endpoint_specs = [
+                    (
+                        geometry.coords[0],
+                        "Modeled NH42 highway departure",
+                        "#16a34a",
+                    ),
+                    (
+                        geometry.coords[-1],
+                        "Modeled NH42 highway reconnection",
+                        "#f59e0b",
+                    ),
+                ]
+
+                for (lon, lat), label, marker_color in endpoint_specs:
+                    popup_text = (
+                        f"<b>{label}</b><br>"
+                        f"Alternative {rank}<br>"
+                        f"Coordinates: {lat:.6f}, {lon:.6f}<br>"
+                        "Geometric connection to mapped NH42; "
+                        "Road access and drivability not field-verified."
+                    )
+
+                    folium.CircleMarker(
+                        location=[lat, lon],
+                        radius=7,
+                        color="white",
+                        weight=2,
+                        fill=True,
+                        fill_color=marker_color,
+                        fill_opacity=1,
+                        tooltip=label,
+                        popup=folium.Popup(
+                            popup_text,
+                            max_width=320,
+                        ),
+                    ).add_to(layer)
 
     m.fit_bounds([
         [bounds[1], bounds[0]],
