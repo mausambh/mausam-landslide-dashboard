@@ -1016,12 +1016,37 @@ def render_highway_research(highway):
             errors="coerce"
         ).round(2)
 
-        # Corrected Junction 1 geometry is used for the public map.
-        # Preserve the original research result in its source CSV.
+        # Pipal Taar has two saved mapped dashboard alternatives.
+        # Display both in the public overview without changing the
+        # original research results or the six-location summary.
+        pipal_overview_routes = load_geojson(
+            "Routes/dashboard_junction1_complete_bypasses.geojson"
+        ).sort_values("alternative_rank")
+
+        assert len(pipal_overview_routes) == 2
+        assert (
+            pipal_overview_routes["alternative_rank"].astype(int).tolist()
+            == [1, 2]
+        )
+
+        pipal_overview_distances = "; ".join(
+            f"Alternative {int(row.alternative_rank)}: "
+            f"{float(row.distance_km):.2f} km"
+            for row in pipal_overview_routes.itertuples()
+        )
+
+        pipal_overview_mask = (
+            public_data["scenario_id"] == "JUNCTION_1"
+        )
+        assert pipal_overview_mask.sum() == 1
+
         public_data.loc[
-            public_data["scenario_id"] == "JUNCTION_1",
-            "Local bypass (km)"
-        ] = 4.346
+            pipal_overview_mask, "Local bypass (km)"
+        ] = pipal_overview_distances
+
+        public_data.loc[
+            pipal_overview_mask, "Outcome"
+        ] = "2 mapped alternative routes in the map data"
 
         # NH42 public summary correction:
         # Use validated local bypasses for display only.
@@ -1072,7 +1097,10 @@ def render_highway_research(highway):
         public_data.loc[
             public_data["scenario_id"] == "JUNCTION_1",
             "Evidence"
-        ] = "Corrected mapped route; not checked on the ground"
+        ] = (
+            "Both routes are graph-derived; road access, "
+            "passability and safety are not field-verified"
+        )
 
         public_data["Highway"] = "Pasang Lhamu"
 
@@ -1119,7 +1147,9 @@ def render_highway_research(highway):
     distance_column = "Alternative route distance (km)"
     public_table[distance_column] = public_table[distance_column].apply(
         lambda value: (
-            f"{float(value):.2f}"
+            value
+            if isinstance(value, str)
+            else f"{float(value):.2f}"
             if pd.notna(value)
             else "—"
         )
