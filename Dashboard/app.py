@@ -435,6 +435,26 @@ st.markdown(
         border-radius: 6px !important;
     }}
 
+    /* EXPANDER_THEME_CONTRAST_FIX_V1 */
+    /* Match expander header, text, and icon to selected dashboard theme. */
+    .stApp [data-testid="stExpander"] details > summary {{
+        background-color: {colors['surface']} !important;
+        color: {colors['text']} !important;
+        border: 1px solid {colors['border']} !important;
+        border-radius: 8px !important;
+    }}
+
+    .stApp [data-testid="stExpander"] details > summary *,
+    .stApp [data-testid="stExpander"] details > summary p,
+    .stApp [data-testid="stExpander"] details > summary svg {{
+        color: {colors['text']} !important;
+        stroke: {colors['text']} !important;
+    }}
+
+    .stApp [data-testid="stExpander"] details > summary:hover {{
+        background-color: {colors['background']} !important;
+    }}
+
     /* TABLE_DIVIDER_THEME_FIX_V1 */
 
     /* Streamlit dataframe/table container */
@@ -822,18 +842,21 @@ def render_highway_research(highway):
 
         options = sorted(scenarios["scenario_id"].dropna().unique())
 
+        # Public labels come from saved, manually reviewed locality
+        # references. Scenario IDs remain unchanged internally.
+        location_catalogue = load_csv(
+            "Dashboard/scenario_location_catalogue.csv"
+        )
+        pasang_location_names = dict(zip(
+            location_catalogue["scenario_id"].astype(str),
+            location_catalogue["location_label"].astype(str),
+        ))
+
         def label(option):
-            row = scenarios.loc[
-                scenarios["scenario_id"] == option
-            ]
-
-            if row.empty:
-                return str(option)
-
-            r = row.iloc[0]
-            group = str(r["scenario_group"])
-
-            return f"{group} — {option}"
+            return pasang_location_names.get(
+                str(option),
+                "Saved Pasang Lhamu closure location",
+            )
 
         def select_results(option):
             return results.loc[
@@ -927,13 +950,13 @@ def render_highway_research(highway):
 
         status_labels = {
             "VALIDATED_GRAPH_DERIVED_BYPASS":
-                "Graph-derived bypass candidate",
+                "Possible alternative route",
             "PROVISIONAL_GRAPH_DERIVED_BYPASS":
-                "Provisional bypass candidate",
+                "Possible route — needs further checking",
             "NO_BYPASS_FOUND_WITHIN_TESTED_LIMITS":
-                "No qualifying local bypass",
+                "No suitable alternative found in this test",
             "NO_QUALIFYING_BYPASS_UNDER_TESTED_CONSTRAINTS":
-                "No qualifying local bypass",
+                "No suitable alternative found in this test",
         }
 
         public_data["Outcome"] = (
@@ -953,13 +976,13 @@ def render_highway_research(highway):
             "assessment_status"
         ].map({
             "VALIDATED_GRAPH_DERIVED_BYPASS":
-                "Graph-valid candidate; not field-verified",
+                "Route connects in the map data; not checked on the ground",
             "PROVISIONAL_GRAPH_DERIVED_BYPASS":
-                "Provisional; blocked-edge avoidance not reproduced",
+                "Needs further checking; avoidance of the closure was not confirmed",
             "NO_BYPASS_FOUND_WITHIN_TESTED_LIMITS":
-                "No qualifying bypass under tested limits",
+                "No suitable alternative found within the tested limits",
             "NO_QUALIFYING_BYPASS_UNDER_TESTED_CONSTRAINTS":
-                "No qualifying bypass under tested constraints",
+                "No suitable alternative found under the tested conditions",
         })
 
         public_data["Highway"] = "Arniko"
@@ -983,9 +1006,9 @@ def render_highway_research(highway):
         ).loc[public_ids].reset_index()
 
         public_data["Outcome"] = public_data["status"].map({
-            "DETOUR_FOUND": "Detour found",
-            "NO_ROUTE_IN_GRAPH": "No route in modeled graph",
-            "NO_MEANINGFUL_CHANGE": "No meaningful route change",
+            "DETOUR_FOUND": "Alternative route found in the map data",
+            "NO_ROUTE_IN_GRAPH": "No alternative found in the map data",
+            "NO_MEANINGFUL_CHANGE": "No meaningful change to the route",
         }).fillna("See research assessment")
 
         public_data["Local bypass (km)"] = pd.to_numeric(
@@ -1028,13 +1051,13 @@ def render_highway_research(highway):
                 public_data["scenario_id"] == sid,
                 "Outcome"
             ] = (
-                f"{count} graph-derived local bypass alternatives"
+                f"{count} possible alternative routes in the map data"
                 if count > 1
-                else "1 graph-derived local bypass"
+                else "1 possible alternative route in the map data"
             )
 
         public_data["Evidence"] = (
-            "Modeled graph result; not field-verified"
+            "Based on map data; not checked on the ground"
         )
 
         for sid in ("NH42_S1_25", "NH42_S1_75"):
@@ -1042,14 +1065,14 @@ def render_highway_research(highway):
                 public_data["scenario_id"] == sid,
                 "Evidence"
             ] = (
-                "Closure-edge avoidance and NH42 connections "
-                "checked; road suitability not field-verified"
+                "Avoidance of the closure and road connections "
+                "checked in map data; not checked on the ground"
             )
 
         public_data.loc[
             public_data["scenario_id"] == "JUNCTION_1",
             "Evidence"
-        ] = "Corrected local bypass geometry; not field-verified"
+        ] = "Corrected mapped route; not checked on the ground"
 
         public_data["Highway"] = "Pasang Lhamu"
 
@@ -1068,28 +1091,103 @@ def render_highway_research(highway):
     assert len(public_data) == 6
     assert public_data["location_label"].notna().all()
 
+    # Public-facing labels only; retain scenario IDs in research data.
     public_display = public_data.rename(columns={
-        "scenario_id": "Scenario ID",
         "location_label": "Location",
+        "Outcome": "Result",
+        "Local bypass (km)": "Alternative route distance (km)",
+        "Evidence": "What this result means",
     })[
         [
             "Location",
-            "Scenario ID",
-            "Outcome",
-            "Local bypass (km)",
-            "Evidence",
+            "Result",
+            "Alternative route distance (km)",
+            "What this result means",
         ]
     ]
 
-    st.dataframe(
-        public_display,
-        width="stretch",
-        hide_index=True
+    # Six-row public summary: readable, wrapping, theme-aware HTML.
+    # Research data and internal scenario identifiers remain unchanged.
+    from html import escape as escape_html
+
+    public_table_bg = "#ffffff" if theme == "light" else "#131f31"
+    public_table_fg = "#17243a" if theme == "light" else "#f1f5f9"
+    public_table_border = "#dce4ef" if theme == "light" else "#2b3a50"
+    public_header_bg = "#edf2f8" if theme == "light" else "#1c2b41"
+
+    public_table = public_display.copy()
+    distance_column = "Alternative route distance (km)"
+    public_table[distance_column] = public_table[distance_column].apply(
+        lambda value: (
+            f"{float(value):.2f}"
+            if pd.notna(value)
+            else "—"
+        )
+    )
+
+    public_headers = "".join(
+        "<th scope='col'>" + escape_html(str(column)) + "</th>"
+        for column in public_table.columns
+    )
+
+    public_rows = "".join(
+        "<tr>" + "".join(
+            "<td>" + escape_html(str(value)) + "</td>"
+            for value in row
+        ) + "</tr>"
+        for row in public_table.itertuples(index=False, name=None)
+    )
+
+    st.markdown(
+        f"""
+        <style>
+        .public-scenario-table {{
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            background: {public_table_bg};
+            color: {public_table_fg};
+            font-size: 0.88rem;
+        }}
+        .public-scenario-table th,
+        .public-scenario-table td {{
+            padding: 0.75rem;
+            text-align: left;
+            vertical-align: top;
+            border: 1px solid {public_table_border};
+            overflow-wrap: anywhere;
+            white-space: normal;
+            color: {public_table_fg} !important;
+        }}
+        .public-scenario-table th {{
+            background: {public_header_bg} !important;
+            font-weight: 600;
+        }}
+        .public-scenario-table td {{
+            background: {public_table_bg} !important;
+        }}
+        @media (max-width: 600px) {{
+            .public-scenario-table {{
+                font-size: 0.76rem;
+            }}
+            .public-scenario-table th,
+            .public-scenario-table td {{
+                padding: 0.45rem;
+            }}
+        }}
+        </style>
+        <div style="overflow-x:auto; width:100%;">
+          <table class="public-scenario-table">
+            <thead><tr>{public_headers}</tr></thead>
+            <tbody>{public_rows}</tbody>
+          </table>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
     st.caption(
-        "Six selected public demonstrations; the full research "
-        "scenario table remains available below. Distances are "
+        "Six selected public demonstrations. Distances are "
         "scenario-specific modeled alternatives, not necessarily "
         "complete journeys. A missing distance does not establish "
         "that no real-world bypass exists."
@@ -1099,93 +1197,9 @@ def render_highway_research(highway):
         "Detailed route scenarios and research results",
         expanded=False
     ):
-        st.subheader("Closure Scenario Outcomes")
-
-        columns = [
-            "Scenario",
-            "Road",
-            "Original distance (km)",
-            "Alternative distance (km)",
-            "Extra distance (km)",
-            "Distance increase (%)",
-            "Result"
-        ]
-
-        if highway == "arniko":
-            display_summary = summary[
-                ["Scenario", "Alternative distance (km)", "Result"]
-            ].copy()
-
-            display_summary = display_summary.rename(columns={
-                "Alternative distance (km)":
-                    "Local bypass distances (km)"
-            })
-
-            distance_col_public = "Local bypass distances (km)"
-
-            display_summary[distance_col_public] = (
-                display_summary[distance_col_public].apply(
-                    lambda value: (
-                        f"{float(value):.2f}"
-                        if pd.notna(value) else "—"
-                    )
-                )
-            )
-
-            # Read all saved Itafu alternatives rather than
-            # displaying only the shortest route.
-            itafu_routes = gpd.read_file(
-                ROOT / "Routes/dashboard_itafu_local_bypass.geojson"
-            ).sort_values("alternative_rank")
-
-            assert len(itafu_routes) == 3
-
-            itafu_distances = ", ".join(
-                f"{float(value):.2f}"
-                for value in itafu_routes["distance_km"]
-            )
-
-            display_summary.loc[
-                summary["scenario_id"] == "ARNIKO_C0_80",
-                distance_col_public
-            ] = itafu_distances
-
-        else:
-            display_summary = summary[columns].copy()
-
-            for col in [
-                "Original distance (km)",
-                "Alternative distance (km)",
-                "Extra distance (km)",
-                "Distance increase (%)"
-            ]:
-                display_summary[col] = pd.to_numeric(
-                    display_summary[col], errors="coerce"
-                ).round(2)
-
-        st.dataframe(
-            display_summary,
-            width="stretch",
-            hide_index=True
-        )
-
-        if highway == "arniko":
-            st.caption(
-                "Local bypass distances are not full-journey "
-                "distances. Unassessed scenarios are not evidence "
-                "that no alternative road exists. Locations are "
-                "based on OSM candidates pending manual review."
-            )
-        else:
-            st.caption(
-                "No route in modeled graph does not imply that "
-                "no real-world alternative road exists."
-            )
-
         st.subheader("Select a Closure Scenario")
 
         # Public demonstrations use six selected scenarios per highway.
-        # The complete research results table above remains unchanged.
         if highway == "arniko":
             public_options = [
                 (0, 40),  # Dolalghat
@@ -1216,66 +1230,96 @@ def render_highway_research(highway):
             key=f"{highway}_unified_scenario"
         )
 
-        subset = select_results(selected)
-        selected_overlap = select_overlap(selected)
+        st.subheader("Local Road Section and Bypass Comparison")
+        st.caption(
+            "Distances compare the original road section with an "
+            "alternative between the same local entry and exit points. "
+            "These are not complete highway journeys."
+        )
 
-        if subset.empty:
-            st.info(
-                "No qualifying alternative-route results are available "
-                "for this simulated closure in the saved research data. "
-                "This does not establish that no real-world bypass exists."
+        local_records = []
+
+        if highway == "arniko":
+            original = load_csv(
+                "Dashboard/arniko_local_original_segments.csv"
+            ).set_index("scenario_id")
+
+            local_files = {
+                "ARNIKO_C0_40": "dashboard_dolalghat_local_bypass.geojson",
+                "ARNIKO_C0_80": "dashboard_itafu_local_bypass.geojson",
+                "ARNIKO_C1_20": "dashboard_dandakateri_local_bypass.geojson",
+                "ARNIKO_C1_40": "dashboard_arniko_c1_40_local_bypass.geojson",
+            }
+
+            selected_id = f"ARNIKO_C{selected[0]}_{selected[1]}"
+            if selected_id in local_files and selected_id in original.index:
+                local_routes = gpd.read_file(
+                    ROOT / "Routes" / local_files[selected_id]
+                ).sort_values("alternative_rank")
+                baseline = float(
+                    original.loc[selected_id, "original_nh34_segment_km"]
+                )
+                for _, route in local_routes.iterrows():
+                    alternative = float(route["distance_km"])
+                    local_records.append({
+                        "Alternative": int(route["alternative_rank"]),
+                        "Original local section (km)": round(baseline, 2),
+                        "Local bypass (km)": round(alternative, 2),
+                        "Additional distance (km)": round(
+                            alternative - baseline, 2
+                        ),
+                        "Distance increase (%)": round(
+                            (alternative / baseline - 1) * 100, 1
+                        ),
+                        "Evidence status": (
+                            "Provisional — additional verification needed"
+                            if selected_id == "ARNIKO_C1_40"
+                            else "Graph-derived; not field verified"
+                        ),
+                    })
+
+        else:
+            local_routes = gpd.read_file(
+                ROOT / "Routes/pasang_nh42_validated_local_bypasses.geojson"
+            )
+            local_routes = local_routes.loc[
+                local_routes["scenario_id"] == selected
+            ].sort_values("alternative_rank")
+
+            for _, route in local_routes.iterrows():
+                local_records.append({
+                    "Alternative": int(route["alternative_rank"]),
+                    "Original local section (km)": round(
+                        float(route["baseline_km"]), 2
+                    ),
+                    "Local bypass (km)": round(
+                        float(route["alternative_km"]), 2
+                    ),
+                    "Additional distance (km)": round(
+                        float(route["additional_km"]), 2
+                    ),
+                    "Distance increase (%)": round(
+                        float(route["additional_pct"]), 1
+                    ),
+                    "Evidence status": "Graph-validated; not field verified",
+                })
+
+        if local_records:
+            st.dataframe(
+                pd.DataFrame(local_records),
+                width="stretch",
+                hide_index=True,
+            )
+            st.caption(
+                "Graph-derived alternatives are not verified for "
+                "real-world road access, driving suitability, or safety."
             )
         else:
-            st.subheader("Alternative Route Comparison")
-
-            comparison = pd.DataFrame({
-                "Alternative": subset["alternative_rank"],
-                "Distance (km)": subset[distance_col],
-                "Extra distance (km)": subset[extra_col],
-                "Extra distance (%)": subset[extra_pct_col],
-                "2018 RF exposure score": subset[exposure_col],
-                "RF coverage (%)": subset[coverage_col],
-                "Graph valid": subset[valid_col]
-            })
-
-            st.dataframe(
-                comparison.round(3),
-                width="stretch",
-                hide_index=True
+            st.info(
+                "A comparable local entry-to-exit bypass measurement "
+                "is not available for this selected closure. "
+                "This does not mean that no real-world alternative exists."
             )
-
-            st.subheader("Distance versus Retrospective RF Exposure")
-
-            chart_data = subset.dropna(
-                subset=[distance_col, exposure_col]
-            )
-
-            if chart_data.empty:
-                st.info(
-                    "No paired route-distance and retrospective RF "
-                    "exposure values are available for this scenario."
-                )
-            else:
-                comparison_chart(
-                    chart_data,
-                    distance_col,
-                    exposure_col,
-                    "alternative_rank"
-                )
-
-            st.subheader("Route Overlap")
-
-            if selected_overlap.empty:
-                st.info(
-                    "No route-overlap comparison is available "
-                    "for this scenario."
-                )
-            else:
-                st.dataframe(
-                    selected_overlap.round(3),
-                    width="stretch",
-                    hide_index=True
-                )
 
         st.info(limitations)
 
@@ -2046,11 +2090,12 @@ def closure_only_map(highway, selected):
     st_folium(m, height=550, width="stretch")
 
     st.caption(
-        "Red indicates a saved simulated closure. "
-        "For Arniko, the red point is a reference location, "
-        "not an exact blocked-road geometry. "
-        "No alternative route is displayed because none was "
-        "identified in the modeled network under the tested conditions."
+        "Map interpretation: Red indicates a saved simulated closure "
+        "or reference location, not necessarily the exact blocked-road "
+        "geometry. No alternative route is displayed because none was "
+        "identified in the modeled road network under the tested "
+        "conditions. This does not mean that no alternative exists "
+        "in the real world."
     )
 
 
