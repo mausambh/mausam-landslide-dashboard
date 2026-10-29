@@ -1304,7 +1304,144 @@ def render_highway_research(highway):
                     "Evidence status": "Graph-validated; not field verified",
                 })
 
-        if local_records:
+        if highway == "pasang" and selected == "JUNCTION_1":
+            junction_routes = gpd.read_file(
+                ROOT / "Routes/dashboard_junction1_complete_bypasses.geojson"
+            )
+            junction_routes = junction_routes.loc[
+                junction_routes["scenario_id"] == selected
+            ].sort_values("alternative_rank")
+
+            # Reconstructed original-road estimates for each route's
+            # own endpoints. A 329.952 m network gap is approximated
+            # by a straight connection; estimates are provisional.
+            pipal_baselines = {
+                1: 3.637845,
+                2: 2.363346,
+            }
+            pipal_sensitivity = {
+                1: "9.54–19.48%",
+                2: "117.55–147.92%",
+            }
+
+            junction_display = pd.DataFrame([
+                {
+                    "Alternative": int(route["alternative_rank"]),
+                    "Original road, provisional (km)": round(
+                        pipal_baselines[int(route["alternative_rank"])], 3
+                    ),
+                    "Mapped bypass (km)": round(
+                        float(route["distance_km"]), 3
+                    ),
+                    "Additional distance, provisional (km)": round(
+                        float(route["distance_km"])
+                        - pipal_baselines[int(route["alternative_rank"])], 3
+                    ),
+                    "Increase, provisional (%)": round(
+                        100 * (
+                            float(route["distance_km"])
+                            - pipal_baselines[int(route["alternative_rank"])]
+                        ) / pipal_baselines[int(route["alternative_rank"])],
+                        2
+                    ),
+                    "Sensitivity range (increase)": pipal_sensitivity[
+                        int(route["alternative_rank"])
+                    ],
+                }
+                for _, route in junction_routes.iterrows()
+            ])
+
+            # Two-row research comparison: styled to match the
+            # desktop dashboard's dark navy theme.
+            # Data and calculations remain unchanged.
+            pipal_headers = "".join(
+                f"<th>{column}</th>"
+                for column in junction_display.columns
+            )
+            pipal_rows = "".join(
+                "<tr>" + "".join(
+                    f"<td>{value}</td>"
+                    for value in row
+                ) + "</tr>"
+                for row in junction_display.itertuples(
+                    index=False, name=None
+                )
+            )
+
+            st.markdown(
+                """
+                <style>
+                .pipal-comparison-wrap {
+                    width: 100%;
+                    overflow-x: auto;
+                    margin: 0.75rem 0 1rem;
+                    border: 1px solid #30435d;
+                    border-radius: 9px;
+                    background: #111e31;
+                }
+                .pipal-comparison-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    color: #f1f5f9;
+                    font-size: 0.88rem;
+                    font-variant-numeric: tabular-nums;
+                }
+                .pipal-comparison-table th {
+                    background: #1c304a;
+                    color: #e2e8f0;
+                    font-weight: 600;
+                    text-align: left;
+                    padding: 13px 11px;
+                    border-bottom: 1px solid #40516a;
+                    white-space: normal;
+                }
+                .pipal-comparison-table td {
+                    padding: 13px 11px;
+                    border-bottom: 1px solid #293c55;
+                    color: #f1f5f9;
+                    text-align: right;
+                    white-space: nowrap;
+                }
+                .pipal-comparison-table td:first-child {
+                    text-align: left;
+                    font-weight: 600;
+                }
+                .pipal-comparison-table tbody tr:nth-child(even) {
+                    background: #182941;
+                }
+                .pipal-comparison-table tbody tr:last-child td {
+                    border-bottom: none;
+                }
+                </style>
+                <div class="pipal-comparison-wrap">
+                    <table class="pipal-comparison-table">
+                        <thead><tr>"""
+                + pipal_headers
+                + """</tr></thead>
+                        <tbody>"""
+                + pipal_rows
+                + """</tbody>
+                    </table>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.warning(
+                "PROVISIONAL MODEL ESTIMATES — not verified original-road "
+                "measurements. The reconstructed network has a missing "
+                "329.952 m highway section, approximated by a straight "
+                "connection. Sensitivity ranges test hypothetical gap "
+                "lengths from 1.0× to 2.0× that distance; they are not "
+                "statistical confidence intervals. Each alternative has "
+                "a different starting point and is compared against its "
+                "own reconstructed original-road baseline."
+            )
+            st.caption(
+                "These graph-derived alternatives are not field-verified. "
+                "Road access, driving suitability, passability, and safety "
+                "remain unconfirmed."
+            )
+        elif local_records:
             st.dataframe(
                 pd.DataFrame(local_records),
                 width="stretch",
@@ -2443,15 +2580,45 @@ if page == "Landslide Route Explorer":
             corrected_routes["alternative_rank"] = (
                 corrected_routes["original_research_rank"].astype(int)
             )
-            # Show only the shortest complete bypass for Junction 1.
-            # Preserve both corrected routes in the source GeoJSON.
+            # Let visitors inspect either saved mapped bypass.
+            # Both remain graph-derived and not field-verified.
+            corrected_routes = corrected_routes.sort_values(
+                "distance_km"
+            ).copy()
+
+            junction_choices = corrected_routes[
+                "original_research_rank"
+            ].astype(int).tolist()
+
+            selected_junction_rank = st.selectbox(
+                "Choose a mapped Pipal Taar alternative",
+                options=junction_choices,
+                format_func=lambda rank: (
+                    f"Alternative "
+                    f"{junction_choices.index(rank) + 1} — "
+                    f"{float(corrected_routes.loc[corrected_routes['original_research_rank'].astype(int) == rank, 'distance_km'].iloc[0]):.2f} km"
+                ),
+                key="pasang_junction1_route_choice",
+            )
+
             corrected_routes = corrected_routes.loc[
-                corrected_routes["original_research_rank"].astype(int) == 1
+                corrected_routes["original_research_rank"].astype(int)
+                == selected_junction_rank
             ].copy()
+
             geo_subset = corrected_routes.copy()
+
             subset = subset.loc[
-                subset["alternative_rank"].astype(int) == 1
+                subset["alternative_rank"].astype(int)
+                == selected_junction_rank
             ].copy()
+
+            st.caption(
+                "Pipal Taar routes are graph-derived, not field-verified. "
+                "The first uses a dashboard-only highway exit; "
+                "the second is an extended mapped bypass. "
+                "Road access, passability, and safety are unconfirmed."
+            )
 
             corrected_distances = dict(zip(
                 corrected_routes["alternative_rank"].astype(int),
@@ -2608,7 +2775,10 @@ if page == "Landslide Route Explorer":
         )
 
         c1.metric(
-            "Selected local bypass distance"
+            "Selected mapped bypass distance"
+            if highway.startswith("Pasang")
+            and selected == "JUNCTION_1"
+            else "Selected local bypass distance"
             if highway.startswith("Pasang")
             and selected in ("NH42_S1_25", "NH42_S1_75")
             else "Local bypass distance"
@@ -2621,7 +2791,7 @@ if page == "Landslide Route Explorer":
 
         if is_dolalghat_local:
             c2.metric("Local bypass RF score", "Not evaluated")
-        elif highway == "Pasang Lhamu" and selected == "JUNCTION_1":
+        elif highway.startswith("Pasang") and selected == "JUNCTION_1":
             c2.metric("Complete-bypass RF score", "Not evaluated")
         elif highway.startswith("Pasang") and selected in (
             "NH42_S1_25", "NH42_S1_75"
@@ -2637,6 +2807,8 @@ if page == "Landslide Route Explorer":
 
         if is_dolalghat_local:
             c3.metric("Local bypass RF coverage", "Not evaluated")
+        elif highway.startswith("Pasang") and selected == "JUNCTION_1":
+            c3.metric("Complete-bypass RF coverage", "Not evaluated")
         elif highway.startswith("Pasang") and selected in (
             "NH42_S1_25", "NH42_S1_75"
         ):
@@ -2653,6 +2825,44 @@ if page == "Landslide Route Explorer":
             "RF scores are retrospective and uncalibrated. "
             "They are not exact probabilities of future landslides."
         )
+
+        # Pipal Taar: compare each selected mapped bypass against
+        # its own provisional original-road reconstruction.
+        if highway.startswith("Pasang") and selected == "JUNCTION_1":
+            pipal_original_baselines = {
+                1: 3.637845,
+                3: 2.363346,
+            }
+            pipal_display_ranks = {
+                1: 1,
+                3: 2,
+            }
+
+            chosen_rank = int(selected_junction_rank)
+            original_km = pipal_original_baselines[chosen_rank]
+            bypass_km = float(shortest["distance_km"])
+            additional_km = bypass_km - original_km
+            increase_pct = 100 * additional_km / original_km
+
+            st.markdown(
+                "**Provisional original-road comparison — "
+                f"Alternative {pipal_display_ranks[chosen_rank]}**"
+            )
+
+            pc1, pc2, pc3, pc4 = st.columns(4)
+            pc1.metric("Original road (provisional)", f"{original_km:.3f} km")
+            pc2.metric("Selected mapped bypass", f"{bypass_km:.3f} km")
+            pc3.metric("Additional distance (provisional)", f"+{additional_km:.3f} km")
+            pc4.metric("Distance increase (provisional)", f"+{increase_pct:.2f}%")
+
+            st.caption(
+                "Modeled estimate only: the original-road reconstruction "
+                "uses an assumed straight-line connection across a "
+                "329.952 m missing road-network section. The alternatives "
+                "have different starting points, and each is compared "
+                "against its own baseline. These are not field-verified "
+                "road distances or safety assessments."
+            )
 
         show_routes = st.button(
             "Simulate blockage and show alternative routes",
