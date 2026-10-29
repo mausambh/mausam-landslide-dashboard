@@ -2774,6 +2774,22 @@ if page == "Landslide Route Explorer":
                 highway.startswith("Arniko")
                 and selected in [(0, 40), (0, 60), (0, 80), (1, 20), (1, 40)]
             ):
+                # Presentation-only local baseline; not the
+                # highway-wide research baseline or an RF result.
+                local_baselines = load_csv(
+                    "Dashboard/arniko_local_original_segments.csv"
+                )
+                local_scenario_id = (
+                    f"ARNIKO_C{selected[0]}_{selected[1]}"
+                )
+                baseline_row = local_baselines.loc[
+                    local_baselines["scenario_id"] == local_scenario_id
+                ]
+                assert len(baseline_row) == 1
+                original_km = float(
+                    baseline_row.iloc[0]["original_nh34_segment_km"]
+                )
+
                 comparison_display = (
                     available_local_routes[
                         ["alternative_rank", "distance_km"]
@@ -2783,12 +2799,36 @@ if page == "Landslide Route Explorer":
                 )
                 comparison_display.columns = [
                     "Alternative",
-                    "Local bypass distance (km)"
+                    "Local bypass (km)"
+                ]
+                comparison_display["Original NH34 segment (km)"] = original_km
+                comparison_display["Additional distance (km)"] = (
+                    comparison_display["Local bypass (km)"] - original_km
+                )
+                comparison_display["Increase (%)"] = (
+                    comparison_display["Additional distance (km)"]
+                    / original_km * 100
+                )
+                comparison_display = comparison_display[
+                    [
+                        "Alternative",
+                        "Original NH34 segment (km)",
+                        "Local bypass (km)",
+                        "Additional distance (km)",
+                        "Increase (%)",
+                    ]
                 ]
                 comparison_display["Alternative"] = (
                     comparison_display["Alternative"].astype(int)
                 )
                 comparison_display = comparison_display.round(3)
+                st.caption(
+                    "Original NH34 segment measured between the same "
+                    "modeled bypass endpoints using saved NH34 geometry. "
+                    "Distances and increases are modeled estimates, not "
+                    "field-verified driving distances. Local bypasses "
+                    "have not been evaluated with the 2018 RF model."
+                )
             elif highway.startswith("Pasang") and selected in (
                 "NH42_S1_25", "NH42_S1_75"
             ):

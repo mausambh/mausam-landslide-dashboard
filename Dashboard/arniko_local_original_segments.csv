@@ -1,0 +1,5 @@
+scenario_id,original_nh34_segment_km,nh34_coverage_pct,measurement_method
+ARNIKO_C0_40,6.266080395864433,100.0,Saved NH34 reference geometry between matching local bypass endpoints; EPSG:32645
+ARNIKO_C0_80,2.8551006597211415,100.0,Saved NH34 reference geometry between matching local bypass endpoints; EPSG:32645
+ARNIKO_C1_20,7.712443306817164,100.0,Saved NH34 reference geometry between matching local bypass endpoints; EPSG:32645
+ARNIKO_C1_40,7.712443306817397,100.0,Saved NH34 reference geometry between matching local bypass endpoints; EPSG:32645
